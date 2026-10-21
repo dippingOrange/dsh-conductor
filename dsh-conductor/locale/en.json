@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Conductor",
+    "description": "Dispatches implementation work from your main model to executor models and collects their reports."
+  }
+}

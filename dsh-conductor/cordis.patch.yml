@@ -1,0 +1,20 @@
+- insert:
+    - id: conductor
+      name: '@local/dsh-conductor'
+      config:
+        # Maximum children running at once. The subagent service also caps
+        # each delegation tree (maxActiveSubagents, default 8).
+        maxConcurrent: 4
+        # Default budget for `wait_tasks` / `dispatch_tasks(wait_seconds)`.
+        defaultWaitSeconds: 120
+        # Hard ceiling for any single wait.
+        maxWaitSeconds: 900
+        # Per-report character cap before truncation.
+        maxCharsPerResult: 6000
+        # Optional seed for executor roles. After first run the Web
+        # "Executors & publisher" tab owns these and persists them to
+        # $DSH_HOME/conductor/roles.json.
+        executors: {}
+        # Default: the flagship may only dispatch to configured roles.
+        # Enable this to also allow ad-hoc provider/model routes.
+        allowAdHocRoutes: false

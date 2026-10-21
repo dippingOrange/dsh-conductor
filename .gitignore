@@ -1,0 +1,10 @@
+node_modules/
+*.log
+*.bak
+.env
+.env.*
+roles.json
+conductor/roles.json
+.DS_Store
+Thumbs.db
+.plugin-manager/

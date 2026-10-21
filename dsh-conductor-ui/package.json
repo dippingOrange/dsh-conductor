@@ -1,0 +1,44 @@
+{
+  "name": "@local/dsh-conductor-ui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Web task board for Conductor: live task status, reports, cancellation, and follow-ups.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dippingOrange/dsh-conductor.git",
+    "directory": "dsh-conductor-ui"
+  },
+  "homepage": "https://github.com/dippingOrange/dsh-conductor#readme",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "task-board"
+  ],
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

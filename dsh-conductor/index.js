@@ -33,6 +33,10 @@ const DEFAULTS = {
   defaultWaitSeconds: 120,
   maxWaitSeconds: 900,
   maxCharsPerResult: 6000,
+  contextCompactionPercent: 60,
+  contextWindowTokens: 128000,
+  contextWindowMax: 0,
+  compactionTimeoutMs: 30000,
   allowAdHocRoutes: false,
 }
 
@@ -43,6 +47,16 @@ export const inject = ['tools', 'subagents']
 export function apply(ctx, rawConfig) {
   const config = resolveConfig(rawConfig)
   const boards = new Map()
+  const executorStats = new Map()
+  let compactionNotice = {
+    boardUnread: false,
+    rolesUnread: false,
+    at: null,
+    executor: null,
+    executorName: null,
+    percentBefore: null,
+    percentAfter: null,
+  }
   const disposers = []
   const logger = ctx.logger
   let roleState = readRoleState(config, logger)
@@ -153,6 +167,7 @@ export function apply(ctx, rawConfig) {
       error: undefined,
       followups: [],
       disposed: false,
+      finalizing: undefined,
       cancelRequested: false,
     }
     board.tasks.set(task.id, task)
@@ -195,6 +210,7 @@ export function apply(ctx, rawConfig) {
   }
 
   async function deliverFollowup(task, message, signal) {
+    if (task.finalizing !== undefined) await task.finalizing
     if (task.childId === undefined) {
       throw new Error(`${task.id} has not started yet (${task.status})`)
     }
@@ -205,7 +221,194 @@ export function apply(ctx, rawConfig) {
       { signal },
     )
     task.followups.push({ message, at: Date.now() })
+    if (task.executorName !== undefined) {
+      const previous = executorStats.get(task.executorName)
+      if (previous !== undefined) {
+        const next = {
+          ...previous,
+          turnsSinceCompact: (previous.turnsSinceCompact ?? 0) + 1,
+          updatedAt: Date.now(),
+        }
+        executorStats.set(task.executorName, next)
+        task.stats = next
+      }
+    }
     return task.childId
+  }
+
+  function measureAgent(agent) {
+    const session = agent?.session
+    if (session === undefined) return null
+    let events
+    try {
+      events = session.snapshotEvents()
+    } catch {
+      return null
+    }
+    let usage
+    let window
+    let lastCompactionIndex = -1
+    let lastCompactedAt = null
+    for (let index = 0; index < events.length; index += 1) {
+      const event = events[index]
+      if (event.type === 'request/context' && typeof event.data?.contextWindow === 'number') {
+        window = event.data.contextWindow
+      }
+      if (event.type === 'assistant/message' && event.data?.usage !== undefined) {
+        usage = event.data.usage
+      }
+      if (event.type === 'compaction/end' || event.type === 'compaction/summary') {
+        lastCompactionIndex = index
+        lastCompactedAt = event.time ?? lastCompactedAt
+      }
+    }
+    let turns = 0
+    for (let index = lastCompactionIndex + 1; index < events.length; index += 1) {
+      if (events[index].type === 'turn/start') turns += 1
+    }
+    const tokens = typeof usage?.inputTokens === 'number' ? usage.inputTokens : null
+    const observed =
+      typeof window === 'number' && window > 0 ? window : config.contextWindowTokens
+    const contextWindow =
+      config.contextWindowMax > 0 ? Math.min(observed, config.contextWindowMax) : observed
+    const percent =
+      tokens === null
+        ? null
+        : Math.max(0, Math.min(100, Math.round((tokens / contextWindow) * 1000) / 10))
+    return {
+      tokens,
+      window: contextWindow,
+      percent,
+      turnsSinceCompact: turns,
+      lastCompactedAt,
+    }
+  }
+
+  function recordExecutorStats(task, stats) {
+    if (task.executorName === undefined) return
+    const value = {
+      executor: task.executorName,
+      name: task.executorLabel ?? task.executorName,
+      session: task.board.parent.id,
+      taskId: task.id,
+      tokens: stats.tokens ?? null,
+      window: stats.window ?? config.contextWindowTokens,
+      percent: stats.percent ?? null,
+      turnsSinceCompact: stats.turnsSinceCompact ?? 0,
+      lastCompactedAt: stats.lastCompactedAt ?? null,
+      compacted: stats.compacted === true,
+      updatedAt: Date.now(),
+    }
+    executorStats.set(task.executorName, value)
+    task.stats = value
+  }
+
+  function markCompaction(task, before, after) {
+    compactionNotice = {
+      boardUnread: true,
+      rolesUnread: true,
+      at: Date.now(),
+      executor: task.executorName ?? null,
+      executorName: task.executorLabel ?? task.executorName ?? null,
+      percentBefore: before.percent ?? null,
+      percentAfter: after.percent ?? null,
+    }
+  }
+
+  async function compactTask(task) {
+    if (task.executorName === undefined || task.childId === undefined) return
+    const agents = ctx.get('agents')
+    let agent = agents?.get?.(task.childId)
+    let handle
+    try {
+      if (agent === undefined && agents !== undefined && typeof agents.resume === 'function') {
+        try {
+          handle = await agents.resume({
+            resumeSessionId: task.childId,
+            parentAgent: task.board.parent,
+            ...(task.provider === undefined
+              ? {}
+              : {
+                  agentOptions: {
+                    provider: task.provider,
+                    model: task.model,
+                    ...(task.reasoningEffort === undefined
+                      ? {}
+                      : { reasoningEffort: task.reasoningEffort }),
+                  },
+                }),
+          })
+        } catch (error) {
+          logger?.warn?.(`conductor: resuming ${task.childId} failed: ${messageOf(error)}`)
+          return
+        }
+        agent = handle.agent
+        try {
+          await agent.whenIdle?.()
+        } catch {
+          // A resumed agent may already be idle.
+        }
+      }
+      if (agent === undefined) return
+
+      const before = measureAgent(agent)
+      if (before === null) return
+      recordExecutorStats(task, before)
+      if (before.percent === null || before.percent < config.contextCompactionPercent) return
+
+      const compaction = ctx.get('compaction') ?? agent.ctx?.get?.('compaction')
+      if (compaction === undefined || typeof compaction.compactNow !== 'function') return
+
+      const controller = new AbortController()
+      const timer = setTimeout(
+        () => controller.abort(new Error('compaction timeout')),
+        config.compactionTimeoutMs,
+      )
+      timer.unref?.()
+      let result
+      try {
+        result = await compaction.compactNow(agent, controller.signal)
+      } catch (error) {
+        logger?.warn?.(`conductor: compacting ${task.id} failed: ${messageOf(error)}`)
+        return
+      } finally {
+        clearTimeout(timer)
+      }
+      if (result === null) return
+
+      const saved = typeof result.shadowedTokenCount === 'number' ? result.shadowedTokenCount : 0
+      const window = before.window ?? config.contextWindowTokens
+      const remaining = Math.max(1, (before.tokens ?? 0) - saved)
+      const summaryTokens = Math.max(200, Math.round(saved * 0.1))
+      const tokens = Math.min(before.tokens ?? remaining, remaining + summaryTokens)
+      const after = {
+        tokens,
+        window,
+        percent: Math.max(0, Math.min(100, Math.round((tokens / window) * 1000) / 10)),
+        turnsSinceCompact: 0,
+        lastCompactedAt: Date.now(),
+        compacted: true,
+      }
+      recordExecutorStats(task, after)
+      markCompaction(task, before, after)
+    } finally {
+      if (handle !== undefined) {
+        try {
+          await handle.dispose()
+        } catch (error) {
+          logger?.warn?.(`conductor: disposing resumed ${task.childId} failed: ${messageOf(error)}`)
+        }
+      }
+    }
+  }
+
+  async function finalizeTask(task) {
+    try {
+      await compactTask(task)
+    } catch (error) {
+      logger?.warn?.(`conductor: finalizing ${task.id} failed: ${messageOf(error)}`)
+    }
+    await disposeTask(task)
   }
 
   function settle(task, result) {
@@ -228,7 +431,8 @@ export function apply(ctx, rawConfig) {
     task.finishedAt = Date.now()
     finishWaiters(task)
     pump(task.board)
-    void disposeTask(task)
+    task.finalizing = finalizeTask(task)
+    void task.finalizing
   }
 
   function fail(task, error) {
@@ -241,7 +445,8 @@ export function apply(ctx, rawConfig) {
     task.finishedAt = Date.now()
     finishWaiters(task)
     pump(task.board)
-    void disposeTask(task)
+    task.finalizing = finalizeTask(task)
+    void task.finalizing
   }
 
   async function startTask(task) {
@@ -286,6 +491,13 @@ export function apply(ctx, rawConfig) {
       task.childId = activation.childId
       task.status = 'running'
       task.startedAt = Date.now()
+      recordExecutorStats(task, {
+        tokens: 0,
+        window: null,
+        percent: 0,
+        turnsSinceCompact: 0,
+        lastCompactedAt: null,
+      })
       activation.result.then(
         (result) => settle(task, result),
         (error) => fail(task, error),
@@ -941,7 +1153,12 @@ export function apply(ctx, rawConfig) {
           const entry = roleState.executors[name]
           const label = entry.name === undefined ? name : `${entry.name} (${name})`
           const note = entry.description === undefined ? '' : ` — ${entry.description}`
-          lines.push(`- ${label} → ${entry.provider}/${entry.model}${note}`)
+          const stat = executorStats.get(name)
+          const statsNote =
+            stat === undefined
+              ? ''
+              : ` — ctx ${stat.percent ?? '?'}% · ${stat.turnsSinceCompact ?? 0} turns since compact`
+          lines.push(`- ${label} → ${entry.provider}/${entry.model}${note}${statsNote}`)
         }
       } else {
         lines.push(
@@ -954,6 +1171,11 @@ export function apply(ctx, rawConfig) {
           roleState.allowAdHocRoutes
             ? 'executor roles plus ad-hoc provider/model routes'
             : 'executor roles only (ad-hoc routes disabled by the user)'
+        }.`,
+        `Context compaction: ${
+          ctx.get('compaction') === undefined
+            ? 'unavailable (enable the host compaction backend)'
+            : 'available'
         }.`,
       )
 
@@ -1047,6 +1269,12 @@ export function apply(ctx, rawConfig) {
       error: task.error ?? null,
       stopReason: task.stopReason ?? null,
       followups: task.followups.length,
+      contextPercent: task.stats?.percent ?? null,
+      contextTokens: task.stats?.tokens ?? null,
+      contextWindow: task.stats?.window ?? null,
+      turnsSinceCompact: task.stats?.turnsSinceCompact ?? null,
+      compactedAt: task.stats?.lastCompactedAt ?? null,
+      compacted: task.stats?.compacted === true,
     }
   }
 
@@ -1070,6 +1298,8 @@ export function apply(ctx, rawConfig) {
       title: sessionTitleOf(sessionId),
       maxConcurrent: config.maxConcurrent,
       updatedAt: Date.now(),
+      executorStats: Object.fromEntries(executorStats),
+      notifications: compactionNotice,
       tasks: board === undefined ? [] : boardTasks(board).map(serializeTask),
     }
   }
@@ -1116,7 +1346,33 @@ export function apply(ctx, rawConfig) {
       } catch {
         defaultSelection = null
       }
-      return sendJson(res, 200, { ...roleState, defaultSelection })
+      return sendJson(res, 200, {
+        ...roleState,
+        defaultSelection,
+        stats: Object.fromEntries(executorStats),
+        notifications: compactionNotice,
+      })
+    }
+
+    if (req.method === 'GET' && url.pathname === '/conductor/notifications') {
+      return sendJson(res, 200, compactionNotice)
+    }
+
+    if (req.method === 'POST' && url.pathname === '/conductor/notifications/read') {
+      let body
+      try {
+        body = await readJson(req)
+      } catch (error) {
+        return sendJson(res, 400, { error: messageOf(error) })
+      }
+      const target = typeof body.target === 'string' ? body.target : 'all'
+      if (target === 'board' || target === 'all') {
+        compactionNotice = { ...compactionNotice, boardUnread: false }
+      }
+      if (target === 'roles' || target === 'all') {
+        compactionNotice = { ...compactionNotice, rolesUnread: false }
+      }
+      return sendJson(res, 200, { ok: true, ...compactionNotice })
     }
 
     if (req.method === 'POST' && url.pathname === '/conductor/roles') {
@@ -1230,6 +1486,8 @@ export function apply(ctx, rawConfig) {
       return sendJson(res, 200, {
         updatedAt: Date.now(),
         maxConcurrent: config.maxConcurrent,
+        executorStats: Object.fromEntries(executorStats),
+        notifications: compactionNotice,
         sessions,
       })
     }
@@ -1400,6 +1658,30 @@ function resolveConfig(raw) {
       DEFAULTS.maxCharsPerResult,
       500,
       100000,
+    ),
+    contextCompactionPercent: clampNumber(
+      input.contextCompactionPercent,
+      DEFAULTS.contextCompactionPercent,
+      10,
+      95,
+    ),
+    contextWindowTokens: clampNumber(
+      input.contextWindowTokens,
+      DEFAULTS.contextWindowTokens,
+      1000,
+      2000000,
+    ),
+    contextWindowMax: clampNumber(
+      input.contextWindowMax,
+      DEFAULTS.contextWindowMax,
+      0,
+      2000000,
+    ),
+    compactionTimeoutMs: clampNumber(
+      input.compactionTimeoutMs,
+      DEFAULTS.compactionTimeoutMs,
+      1000,
+      120000,
     ),
     executors,
     allowAdHocRoutes: input.allowAdHocRoutes === true,

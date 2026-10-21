@@ -81,6 +81,35 @@ activity/usage 参数行。
 > 首次安装后如果没看到入口，刷新一次页面（Ctrl+R）。面板 API 与 Web GUI 同源，
 > 沿用 GUI 的访问边界；不要把 GUI 端口暴露到不可信网络。
 
+## 上下文预算与压缩
+
+执行者仍然按任务隔离：每次 `dispatch_tasks` 都新建 child，新任务不会继承上一个任务的上下文；
+唯一复用上下文的是 `task_followup`。
+
+任务（包括 follow-up）结束后，插件读取 child 最后一次请求的 input tokens 和模型 context
+window。如果占用 **≥ 60%**，它会重新 resume 这个 child session，调用 Host 的 compaction
+服务（与 `/compact` 同一后端）压缩，记录压缩后的占用并释放 session。下一次 follow-up
+冷启动时看到的是压缩后的历史；新任务仍然从全新 child 开始，没有旧上下文需要压缩。
+
+每个执行者的最近一次任务会在 **执行者与发布者** 和任务卡片中显示：
+
+- 上下文占用百分比
+- 上次压缩至今的对话轮数
+
+压缩成功后，左侧 **任务板** 图标和 **执行者与发布者** tab 会出现绿点；打开对应界面后清除。
+
+配置项：
+
+| 键 | 默认 | 含义 |
+|---|---|---|
+| `contextCompactionPercent` | `60` | 最后一次请求占 context window 的百分比阈值 |
+| `contextWindowTokens` | `128000` | provider 未报告窗口时的回退值 |
+| `contextWindowMax` | `0` | 百分比计算的可选上限；0 表示用 provider 报告值 |
+| `compactionTimeoutMs` | `30000` | 压缩超时 |
+
+bundle 会重新启用 Host 的 `compaction-basic` / `command-compact`（Web app 默认把它们留给
+preset），因此普通聊天里的 `/compact` 也可用。
+
 ## 先加模型路由（一次性）
 
 插件只负责“派给谁”，模型提供方由 DSH 自带的 **Settings → Models** 管理。三种来源：

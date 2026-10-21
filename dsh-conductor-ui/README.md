@@ -35,6 +35,8 @@
 
 - **任务发布者（旗舰）**：选 provider/model，应用为 DSH 默认模型；新建会话使用它；
 - **执行者（次旗舰）**：固定角色列表，每个角色绑定 provider/model，可改名、说明、增删；
+- 每个执行者显示最近一次任务的**上下文占用百分比**和**上次压缩后的对话轮数**；
+- 压缩成功后，左侧 **任务板** 图标和 **执行者与发布者** 标签出现绿点；打开后清除；
 - **路由策略**：默认只允许使用执行者角色，旗舰不能自行指定 provider/model；
 - 保存后写入 `$DSH_HOME/conductor/roles.json`，立即生效。
 
@@ -48,7 +50,9 @@
 | GET | `/conductor/boards` | 所有会话的任务（整页看板用） |
 | GET | `/conductor/result?session=<id>&task=<T1>` | 单个任务的完整报告 |
 | POST | `/conductor/action` | `{session, task, action: "cancel" \| "followup", message?}` |
-| GET | `/conductor/roles` | 发布者、执行者角色、路由策略 |
+| GET | `/conductor/roles` | 发布者、执行者角色、路由策略、上下文统计 |
+| GET | `/conductor/notifications` | 压缩未读绿点状态 |
+| POST | `/conductor/notifications/read` | `{target: "board" \| "roles"}` 清除绿点 |
 | POST | `/conductor/roles` | 保存完整的角色配置 |
 | GET | `/conductor/routes` | 所有 provider 及其模型（下拉框数据） |
 | POST | `/conductor/lead/apply` | 把发布者写回 DSH 默认模型 |

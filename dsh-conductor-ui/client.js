@@ -33,6 +33,10 @@ window.__ModuleLoader__.load({
       'roles.executorsHint': '旗舰只能把任务派给这些角色，模型由你固定。',
       'roles.add': '添加执行者',
       'roles.added': '已添加执行者；保存后生效',
+      'roles.context': '上下文占用',
+      'roles.turns': '压缩后轮数',
+      'roles.noStats': '尚未运行',
+      'roles.compacted': '已压缩',
       'roles.remove': '删除',
       'roles.save': '保存配置',
       'roles.apply': '应用为默认发布者',
@@ -105,6 +109,10 @@ window.__ModuleLoader__.load({
       'roles.executorsHint': 'The flagship may only assign work to these roles; you fix each model.',
       'roles.add': 'Add executor',
       'roles.added': 'Executor added; save to apply',
+      'roles.context': 'Context',
+      'roles.turns': 'Turns since compact',
+      'roles.noStats': 'Not run yet',
+      'roles.compacted': 'compacted',
       'roles.remove': 'Remove',
       'roles.save': 'Save configuration',
       'roles.apply': 'Apply as default publisher',
@@ -261,6 +269,10 @@ window.__ModuleLoader__.load({
 .dsh-cb-launcher { width:28px; height:28px; border:0; background:transparent; color:var(--dsw-alias-label-secondary); border-radius:6px; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer; flex:none; }
 .dsh-cb-launcher:hover { background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-primary); }
 .dsh-cb-launcher:focus-visible { outline:2px solid var(--dsw-alias-brand-primary); outline-offset:1px; }
+.dsh-cb-panel-wrap { position:relative; display:inline-flex; align-items:center; justify-content:center; }
+.dsh-cb-panel-dot { position:absolute; top:-2px; right:-2px; width:7px; height:7px; border-radius:50%; background:#22c55e; box-shadow:0 0 0 2px var(--dsw-alias-bg-base); }
+.dsh-cb-tab-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#22c55e; margin-left:6px; vertical-align:middle; }
+.dsh-cb-role-stat { color:var(--dsw-alias-label-secondary); font-size:11px; margin-top:6px; }
 .dsh-cb-compact { padding:12px; }
 .dsh-cb-compact .dsh-cb-columns { grid-template-columns:1fr; }
 .dsh-cb-compact .dsh-cb-page-title { font-size:16px; }
@@ -367,6 +379,46 @@ window.__ModuleLoader__.load({
       return { data, error, reload: load }
     }
 
+    function useNotifications() {
+      const [value, setValue] = useState(null)
+      const inFlight = useRef(false)
+      const load = useCallback(async () => {
+        if (inFlight.current) return
+        inFlight.current = true
+        try {
+          const response = await fetch('/conductor/notifications', {
+            cache: 'no-store',
+            headers: { accept: 'application/json' },
+          })
+          if (response.ok) setValue(await response.json())
+        } catch {
+          // A notification poll is best-effort.
+        } finally {
+          inFlight.current = false
+        }
+      }, [])
+      useEffect(() => {
+        void load()
+        const timer = setInterval(() => {
+          void load()
+        }, 3000)
+        return () => clearInterval(timer)
+      }, [load])
+      return value
+    }
+
+    async function markNotificationRead(target) {
+      try {
+        await fetch('/conductor/notifications/read', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ target }),
+        })
+      } catch {
+        // The next poll reconciles the badge.
+      }
+    }
+
     async function postAction(payload) {
       const response = await fetch('/conductor/action', {
         method: 'POST',
@@ -400,15 +452,25 @@ window.__ModuleLoader__.load({
 
     function ConductorPanelIcon(props) {
       const size = typeof props.size === 'number' ? props.size : 18
+      const notifications = useNotifications()
+      const unread = notifications?.boardUnread === true
+      useEffect(() => {
+        if (props.active === true && unread) void markNotificationRead('board')
+      }, [props.active, unread])
       return h(
-        'svg',
-        { viewBox: '0 0 24 24', width: size, height: size, fill: 'none', 'aria-hidden': true },
-        h('path', {
-          d: 'M4 6h16M4 12h9M4 18h12',
-          stroke: 'currentColor',
-          strokeWidth: 1.8,
-          strokeLinecap: 'round',
-        }),
+        'span',
+        { className: 'dsh-cb-panel-wrap' },
+        h(
+          'svg',
+          { viewBox: '0 0 24 24', width: size, height: size, fill: 'none', 'aria-hidden': true },
+          h('path', {
+            d: 'M4 6h16M4 12h9M4 18h12',
+            stroke: 'currentColor',
+            strokeWidth: 1.8,
+            strokeLinecap: 'round',
+          }),
+        ),
+        unread ? h('span', { className: 'dsh-cb-panel-dot' }) : null,
       )
     }
 
@@ -1276,6 +1338,15 @@ window.__ModuleLoader__.load({
                     ),
                     h(
                       'div',
+                      { className: 'dsh-cb-role-stat' },
+                      props.stats?.[id] === undefined
+                        ? tr('roles.noStats')
+                        : `${tr('roles.context')} ${props.stats[id].percent ?? '?'}% · ${tr('roles.turns')} ${
+                            props.stats[id].turnsSinceCompact ?? 0
+                          }${props.stats[id].compacted ? ` · ${tr('roles.compacted')}` : ''}`,
+                    ),
+                    h(
+                      'div',
                       { className: 'dsh-cb-role-actions' },
                       h(
                         'button',
@@ -1506,6 +1577,17 @@ window.__ModuleLoader__.load({
                 task.followups > 0 ? ` · ${tr('label.followups')} ${task.followups}` : ''
               }`,
             ),
+            task.contextPercent === null || task.contextPercent === undefined
+              ? null
+              : h(
+                  'div',
+                  { className: 'dsh-cb-sub' },
+                  `${tr('roles.context')} ${task.contextPercent}%${
+                    task.turnsSinceCompact === null || task.turnsSinceCompact === undefined
+                      ? ''
+                      : ` · ${task.turnsSinceCompact} ${tr('roles.turns')}`
+                  }`,
+                ),
             preview === null ? null : h('div', { className: 'dsh-cb-preview' }, preview),
             task.error ? h('div', { className: 'dsh-cb-error' }, task.error) : null,
             followup !== null && followup.key === key ? followupEditor(task) : null,
@@ -1564,6 +1646,14 @@ window.__ModuleLoader__.load({
       }
 
       const sessions = data !== null && Array.isArray(data.sessions) ? data.sessions : []
+      const pageStats = data?.executorStats ?? {}
+      const rolesUnread = data?.notifications?.rolesUnread === true
+      useEffect(() => {
+        void markNotificationRead('board')
+      }, [])
+      useEffect(() => {
+        if (view === 'roles' && rolesUnread) void markNotificationRead('roles')
+      }, [view, rolesUnread])
       const sessionTitles = new Map(
         sessions.map((entry) => [entry.session, entry.title]),
       )
@@ -1800,10 +1890,13 @@ window.__ModuleLoader__.load({
                 onClick: () => setView('roles'),
               },
               tr('tab.roles'),
+              view !== 'roles' && rolesUnread
+                ? h('span', { className: 'dsh-cb-tab-dot' })
+                : null,
             ),
           ),
           view === 'roles'
-            ? h(RolesPanel, { t: tr, onNewSession: props.onNewSession })
+            ? h(RolesPanel, { t: tr, onNewSession: props.onNewSession, stats: pageStats })
             : h(
                 React.Fragment,
                 null,

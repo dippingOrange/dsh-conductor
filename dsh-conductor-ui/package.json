@@ -1,6 +1,6 @@
 {
   "name": "@dippingorange/dsh-conductor-ui",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Web task board for Conductor: live task status, reports, cancellation, and follow-ups.",
   "license": "MIT",
   "repository": {

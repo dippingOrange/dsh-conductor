@@ -3,6 +3,20 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.6] - 2026-10-21
+
+### Added
+
+- Per-executor context accounting: the last task's context usage percentage and the number of
+  turns since the last compaction, shown in the roles editor and task cards.
+- Automatic context compaction after a task settles when the last request used at least 60% of the
+  executor's model context window. The executor's session is resumed, compacted with the Host
+  compaction service, and released; new tasks still start from a fresh child, preserving isolation.
+- Green unread dots on the left **Tasks** icon and the **Executors & publisher** tab after a
+  compaction; opening the corresponding view clears them.
+- `contextCompactionPercent`, `contextWindowTokens`, `contextWindowMax`, and `compactionTimeoutMs`
+  config keys. The bundle enables the host compaction backend so `/compact` is available.
+
 ## [1.0.5] - 2026-10-21
 
 ### Changed

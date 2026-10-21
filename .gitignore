@@ -8,3 +8,5 @@ conductor/roles.json
 .DS_Store
 Thumbs.db
 .plugin-manager/
+dist/
+*.tgz

@@ -11,6 +11,16 @@
         maxWaitSeconds: 900
         # Per-report character cap before truncation.
         maxCharsPerResult: 6000
+        # Compact an executor's child session after a task when its last
+        # request used at least this percentage of the model context window.
+        contextCompactionPercent: 60
+        # Fallback context window when the provider does not report one.
+        contextWindowTokens: 128000
+        # Upper bound for the context window used in percentage calculations;
+        # 0 means use the provider-reported window.
+        contextWindowMax: 0
+        # Abort a compaction attempt that runs longer than this.
+        compactionTimeoutMs: 30000
         # Optional seed for executor roles. After first run the Web
         # "Executors & publisher" tab owns these and persists them to
         # $DSH_HOME/conductor/roles.json.
@@ -18,3 +28,11 @@
         # Default: the flagship may only dispatch to configured roles.
         # Enable this to also allow ad-hoc provider/model routes.
         allowAdHocRoutes: false
+
+# Conductor compacts executor sessions through the Host compaction seam. The
+# Web app disables the host-plane backend because presets may own one; enabling
+# it here gives the Host plugin (and /compact) a backend to call.
+- id: compaction-basic
+  disabled: false
+- id: command-compact
+  disabled: false

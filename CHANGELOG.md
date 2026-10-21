@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-10-21
+
+### Changed
+
+- Moved the session task dock from above the composer to the composer's ambient dock,
+  after the activity and usage rows. The input box and its parameters now sit above the
+  board, and the board inherits the composer column's width for alignment.
+
 ## [1.0.0] - 2026-10-21
 
 ### Added

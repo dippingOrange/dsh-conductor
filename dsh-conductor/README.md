@@ -49,7 +49,7 @@ dsh plugin install /path/to/dsh-conductor/dsh-conductor-ui
 
 另装了一个独立的 Web UI bundle `@local/dsh-conductor-ui`，提供两个入口：
 
-**1. 会话内紧凑条**：当前会话一有任务，输入框上方出现 **Conductor 任务板**。
+**1. 会话内紧凑条**：当前会话一有任务，**输入框下方**（活动/用量参数行之后）出现 **Conductor 任务板**。
 
 - 折叠时显示「N 运行中 · N 已完成」，点标题展开；
 - 按 全部 / 进行中 / 已完成 / 失败 筛选；

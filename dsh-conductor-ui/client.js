@@ -151,7 +151,7 @@ window.__ModuleLoader__.load({
     }
 
     const CSS = `
-.dsh-cb { border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-1); border-radius:10px; margin:0 0 8px; overflow:hidden; font-size:12px; color:var(--dsw-alias-label-primary); }
+.dsh-cb { border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-1); border-radius:10px; margin:8px 0 0; overflow:hidden; font-size:12px; color:var(--dsw-alias-label-primary); }
 .dsh-cb-head { display:flex; align-items:center; gap:4px; padding:5px 8px 5px 4px; }
 .dsh-cb-toggle { flex:1; min-width:0; display:flex; align-items:center; gap:8px; border:0; background:transparent; color:inherit; padding:4px 6px; border-radius:6px; cursor:pointer; text-align:left; font:inherit; }
 .dsh-cb-toggle:hover { background:var(--dsw-alias-bg-layer-2); }
@@ -1795,10 +1795,10 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, { zh, en }))
         const t = ctx.locale.bind(NS)
-        ctx.slots.inject('conversation.input.dock', () =>
+        ctx.slots.inject('conversation.composer.dock', () =>
           ctx.slots.register(
             {
-              name: 'conversation.input.dock',
+              name: 'conversation.composer.dock',
               id: 'conductor-board',
               order: 5,
               locale: NS,

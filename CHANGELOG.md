@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.3] - 2026-10-21
+
+### Changed
+
+- The executor-added confirmation now appears next to the **Add executor** button, and adding a role
+  immediately confirms that it still needs to be saved.
+
 ## [1.0.2] - 2026-10-21
 
 ### Changed

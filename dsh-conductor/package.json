@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-conductor",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "Route implementation work from the main model to executor models and collect their reports.",
   "license": "MIT",

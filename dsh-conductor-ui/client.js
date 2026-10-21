@@ -32,6 +32,7 @@ window.__ModuleLoader__.load({
       'roles.executors': '执行者（次旗舰）',
       'roles.executorsHint': '旗舰只能把任务派给这些角色，模型由你固定。',
       'roles.add': '添加执行者',
+      'roles.added': '已添加执行者；保存后生效',
       'roles.remove': '删除',
       'roles.save': '保存配置',
       'roles.apply': '应用为默认发布者',
@@ -103,6 +104,7 @@ window.__ModuleLoader__.load({
       'roles.executors': 'Executors (sub-flagship)',
       'roles.executorsHint': 'The flagship may only assign work to these roles; you fix each model.',
       'roles.add': 'Add executor',
+      'roles.added': 'Executor added; save to apply',
       'roles.remove': 'Remove',
       'roles.save': 'Save configuration',
       'roles.apply': 'Apply as default publisher',
@@ -984,6 +986,7 @@ window.__ModuleLoader__.load({
           }
           return { ...current, executors }
         })
+        notify(tr('roles.added'))
       }
 
       function setLeadProvider(provider) {
@@ -1165,7 +1168,6 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         { className: 'dsh-cb-roles' },
-        notice === null ? null : h('div', { className: 'dsh-cb-notice' }, notice),
         error === null
           ? null
           : h('div', { className: 'dsh-cb-error' }, `${tr('roles.error')}: ${error}`),
@@ -1296,6 +1298,7 @@ window.__ModuleLoader__.load({
               { type: 'button', className: 'dsh-cb-btn', onClick: addExecutor },
               tr('roles.add'),
             ),
+            notice === null ? null : h('span', { className: 'dsh-cb-notice' }, notice),
           ),
         ),
         h(

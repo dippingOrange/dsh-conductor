@@ -35,8 +35,8 @@ the **user** — not the model — decide which model each role uses.
 - A per-session right-sidebar board opened from the composer toolbar, plus a global full-page board
   with active/done/failed columns.
 - Per-executor context accounting: usage percentage, turns since the last compaction, and automatic
-  compaction at 60% of the model context window after a task settles. New tasks still start fresh,
-  so task isolation is preserved.
+  compaction at 40% of the model context window after a task settles. New tasks still start fresh,
+  so task isolation is preserved. Each role can override the threshold.
 - Green unread badges on the Tasks icon and the Executors tab after a compaction.
 - Cancel, follow up, and inspect full reports from the UI or from the model's tools.
 - No build step, no npm runtime dependencies; the UI uses only the browser React module table.
@@ -73,7 +73,8 @@ Executor tasks remain isolated: every `dispatch_tasks` call starts a new child, 
 inherits another task's context. The only reused context is `task_followup`.
 
 After a task settles (including a follow-up), Conductor reads the child's last request usage and
-model context window. If usage is at least **60%**, it resumes the child session, calls the Host
+model context window. If usage is at least **40%** (the default tuned for DeepSeek's observed
+quality drop), it resumes the child session, calls the Host
 compaction service (the same backend as `/compact`), records the post-compaction usage, and
 releases the session. The next follow-up cold-resumes the compacted history. A new task starts from
 a fresh child and therefore has no context to compact.
@@ -86,7 +87,7 @@ Config keys:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `contextCompactionPercent` | `60` | Compact when the last request used this percentage of the window |
+| `contextCompactionPercent` | `40` | Compact when the last request used this percentage of the window; a role can override it |
 | `contextWindowTokens` | `128000` | Fallback when the provider reports no context window |
 | `contextWindowMax` | `0` | Optional cap for percentage calculations; `0` uses the reported window |
 | `compactionTimeoutMs` | `30000` | Abort a compaction attempt after this long |

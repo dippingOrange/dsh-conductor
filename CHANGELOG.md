@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.7] - 2026-10-21
+
+### Changed
+
+- Lowered the default executor compaction threshold to **40%** of the model context window, based
+  on the observed DeepSeek quality drop after roughly 40%. The threshold is now editable per
+  executor role, so non-DeepSeek roles can keep a higher value.
+
 ## [1.0.6] - 2026-10-21
 
 ### Added

@@ -87,7 +87,8 @@ activity/usage 参数行。
 唯一复用上下文的是 `task_followup`。
 
 任务（包括 follow-up）结束后，插件读取 child 最后一次请求的 input tokens 和模型 context
-window。如果占用 **≥ 60%**，它会重新 resume 这个 child session，调用 Host 的 compaction
+window。如果占用 **≥ 40%**（默认值按 DeepSeek 在 40% 后质量下降的观察设置），它会重新
+resume 这个 child session，调用 Host 的 compaction
 服务（与 `/compact` 同一后端）压缩，记录压缩后的占用并释放 session。下一次 follow-up
 冷启动时看到的是压缩后的历史；新任务仍然从全新 child 开始，没有旧上下文需要压缩。
 
@@ -102,7 +103,7 @@ window。如果占用 **≥ 60%**，它会重新 resume 这个 child session，�
 
 | 键 | 默认 | 含义 |
 |---|---|---|
-| `contextCompactionPercent` | `60` | 最后一次请求占 context window 的百分比阈值 |
+| `contextCompactionPercent` | `40` | 最后一次请求占 context window 的百分比阈值；每个执行者可覆盖 |
 | `contextWindowTokens` | `128000` | provider 未报告窗口时的回退值 |
 | `contextWindowMax` | `0` | 百分比计算的可选上限；0 表示用 provider 报告值 |
 | `compactionTimeoutMs` | `30000` | 压缩超时 |

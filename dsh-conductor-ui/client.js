@@ -37,6 +37,7 @@ window.__ModuleLoader__.load({
       'roles.turns': '压缩后轮数',
       'roles.noStats': '尚未运行',
       'roles.compacted': '已压缩',
+      'roles.compactAt': '压缩阈值 (%)',
       'roles.remove': '删除',
       'roles.save': '保存配置',
       'roles.apply': '应用为默认发布者',
@@ -113,6 +114,7 @@ window.__ModuleLoader__.load({
       'roles.turns': 'Turns since compact',
       'roles.noStats': 'Not run yet',
       'roles.compacted': 'compacted',
+      'roles.compactAt': 'Compact at (%)',
       'roles.remove': 'Remove',
       'roles.save': 'Save configuration',
       'roles.apply': 'Apply as default publisher',
@@ -1326,6 +1328,23 @@ window.__ModuleLoader__.load({
                         modelSelect(modelsOf(entry.provider), entry.model, (value) =>
                           updateExecutor(id, 'model', value),
                         ),
+                      ),
+                      field(
+                        tr('roles.compactAt'),
+                        h('input', {
+                          type: 'number',
+                          min: 10,
+                          max: 95,
+                          step: 1,
+                          value: entry.contextCompactionPercent ?? '',
+                          placeholder: '40',
+                          onChange: (event) =>
+                            updateExecutor(
+                              id,
+                              'contextCompactionPercent',
+                              event.target.value,
+                            ),
+                        }),
                       ),
                     ),
                     field(

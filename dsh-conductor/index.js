@@ -33,7 +33,7 @@ const DEFAULTS = {
   defaultWaitSeconds: 120,
   maxWaitSeconds: 900,
   maxCharsPerResult: 6000,
-  contextCompactionPercent: 60,
+  contextCompactionPercent: 40,
   contextWindowTokens: 128000,
   contextWindowMax: 0,
   compactionTimeoutMs: 30000,
@@ -148,6 +148,7 @@ export function apply(ctx, rawConfig) {
       provider: spec.provider,
       model: spec.model,
       reasoningEffort: spec.reasoningEffort,
+      compactionPercent: spec.compactionPercent,
       routeLabel: spec.routeLabel,
       executorName: spec.executorName,
       executorLabel: spec.executorLabel,
@@ -295,6 +296,7 @@ export function apply(ctx, rawConfig) {
       window: stats.window ?? config.contextWindowTokens,
       percent: stats.percent ?? null,
       turnsSinceCompact: stats.turnsSinceCompact ?? 0,
+      compactionPercent: task.compactionPercent ?? config.contextCompactionPercent,
       lastCompactedAt: stats.lastCompactedAt ?? null,
       compacted: stats.compacted === true,
       updatedAt: Date.now(),
@@ -354,7 +356,7 @@ export function apply(ctx, rawConfig) {
       const before = measureAgent(agent)
       if (before === null) return
       recordExecutorStats(task, before)
-      if (before.percent === null || before.percent < config.contextCompactionPercent) return
+      if (before.percent === null || before.percent < (task.compactionPercent ?? config.contextCompactionPercent)) return
 
       const compaction = ctx.get('compaction') ?? agent.ctx?.get?.('compaction')
       if (compaction === undefined || typeof compaction.compactNow !== 'function') return
@@ -601,6 +603,7 @@ export function apply(ctx, rawConfig) {
         : typeof input.reasoningEffort === 'string'
           ? input.reasoningEffort.trim()
           : ''
+    let compactionPercent
 
     if (executorName !== '') {
       if (provider !== '' || model !== '' || inherit) {
@@ -619,6 +622,7 @@ export function apply(ctx, rawConfig) {
       if (reasoningEffort === '' && configured.reasoningEffort !== undefined) {
         reasoningEffort = configured.reasoningEffort
       }
+      compactionPercent = configured.contextCompactionPercent
     } else if (inherit) {
       if (provider !== '' || model !== '') {
         throw new Error(`tasks[${index}]: inherit cannot be combined with provider/model`)
@@ -660,6 +664,7 @@ export function apply(ctx, rawConfig) {
       provider: provider === '' ? undefined : provider,
       model: model === '' ? undefined : model,
       reasoningEffort: reasoningEffort === '' ? undefined : reasoningEffort,
+      compactionPercent,
       executorName: executorName === '' ? undefined : executorName,
       executorLabel: executorLabel === '' ? undefined : executorLabel,
       cwd,
@@ -1154,10 +1159,11 @@ export function apply(ctx, rawConfig) {
           const label = entry.name === undefined ? name : `${entry.name} (${name})`
           const note = entry.description === undefined ? '' : ` — ${entry.description}`
           const stat = executorStats.get(name)
+          const threshold = entry.contextCompactionPercent ?? config.contextCompactionPercent
           const statsNote =
             stat === undefined
-              ? ''
-              : ` — ctx ${stat.percent ?? '?'}% · ${stat.turnsSinceCompact ?? 0} turns since compact`
+              ? ` — compact at ${threshold}%`
+              : ` — ctx ${stat.percent ?? '?'}% · ${stat.turnsSinceCompact ?? 0} turns since compact · compact at ${stat.compactionPercent ?? threshold}%`
           lines.push(`- ${label} → ${entry.provider}/${entry.model}${note}${statsNote}`)
         }
       } else {
@@ -1725,12 +1731,22 @@ function normalizeRoleState(raw, seed) {
         : typeof value.reasoning_effort === 'string'
           ? value.reasoning_effort.trim()
           : ''
+    const rawThreshold = value.contextCompactionPercent
+    const thresholdNumber =
+      typeof rawThreshold === 'string' && rawThreshold.trim() !== ''
+        ? Number(rawThreshold)
+        : rawThreshold
+    const contextCompactionPercent =
+      typeof thresholdNumber === 'number' && Number.isFinite(thresholdNumber)
+        ? Math.min(95, Math.max(10, Math.round(thresholdNumber)))
+        : undefined
     executors[id] = {
       provider,
       model,
       ...(name === '' ? {} : { name }),
       ...(description === '' ? {} : { description }),
       ...(reasoningEffort === '' ? {} : { reasoningEffort }),
+      ...(contextCompactionPercent === undefined ? {} : { contextCompactionPercent }),
     }
   }
   let lead

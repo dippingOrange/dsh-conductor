@@ -13,7 +13,7 @@
         maxCharsPerResult: 6000
         # Compact an executor's child session after a task when its last
         # request used at least this percentage of the model context window.
-        contextCompactionPercent: 60
+        contextCompactionPercent: 40
         # Fallback context window when the provider does not report one.
         contextWindowTokens: 128000
         # Upper bound for the context window used in percentage calculations;

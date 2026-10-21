@@ -9,8 +9,8 @@ The project ships two DSH bundles:
 
 - **`dsh-conductor`** — Host plugin: `dispatch_tasks`, `wait_tasks`, `task_result`, `task_followup`,
   `cancel_task`, `list_executors`; role persistence; same-origin HTTP bridge for the UI.
-- **`dsh-conductor-ui`** — Web UI: a compact session dock, a full native task-board page, and an
-  **Executors & publisher** editor.
+- **`dsh-conductor-ui`** — Web UI: a composer-toolbar launcher, a right-sidebar task-board tab, a
+  full native task-board page, and an **Executors & publisher** editor.
 
 ## Why
 
@@ -32,7 +32,8 @@ the **user** — not the model — decide which model each role uses.
   return format.
 - Fixed executor roles: `id + name + provider + model + description`, editable in the Web UI.
 - Persistent roles at `$DSH_HOME/conductor/roles.json` (no API keys in this file).
-- Per-session compact dock and a global full-page board with active/done/failed columns.
+- A per-session right-sidebar board opened from the composer toolbar, plus a global full-page board
+  with active/done/failed columns.
 - Cancel, follow up, and inspect full reports from the UI or from the model's tools.
 - No build step, no npm runtime dependencies; the UI uses only the browser React module table.
 
@@ -65,7 +66,8 @@ Refresh the Web UI once after installing. Both plugins can be enabled or disable
 
 1. **Settings → Models** — add the providers you want to use (OpenAI-compatible relay,
    Anthropic-compatible relay, OpenCode Zen, Command Code, or a self-hosted vLLM/Ollama endpoint).
-2. Open the **Tasks** panel from the left sidebar (or the `▦` button on the session dock).
+2. Open the **Tasks** panel from the left sidebar, or click the `▦` button at the left of the
+   composer toolbar.
 3. Switch to **Executors & publisher**:
    - choose the publisher (flagship) model;
    - add executor roles and fix each role's provider/model;
@@ -110,7 +112,7 @@ user ──chat──▶ flagship (publisher)
 
 ```
 dsh-conductor/      Host plugin: tools, role store, HTTP bridge
-dsh-conductor-ui/   Client bundle: dock, full task board, roles editor
+dsh-conductor-ui/   Client bundle: toolbar launcher, right-sidebar board, full page, roles editor
 ```
 
 ## Development

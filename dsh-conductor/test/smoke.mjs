@@ -47,6 +47,10 @@ const systemPrompt = {
 
 const ctx = {
   logger: { info() {}, warn() {} },
+  webServer: { register: () => () => {} },
+  inject(_deps, callback) {
+    return callback(ctx)
+  },
   tools: {
     register(definition) {
       registered.set(definition.name, definition)

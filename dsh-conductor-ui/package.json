@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-conductor-ui",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Web task board for Conductor: live task status, reports, cancellation, and follow-ups.",
   "license": "MIT",
@@ -38,7 +38,10 @@
     },
     "client": {
       "platform": "web",
-      "immediately": true
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
     }
   }
 }

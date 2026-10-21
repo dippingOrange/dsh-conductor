@@ -7,6 +7,8 @@ window.__ModuleLoader__.load({
 
     const NS = 'conductor'
     const PANEL_ID = 'conductor-tasks'
+    const BOARD_TAB_ID = '@local/dsh-conductor-ui/board'
+    const BOARD_TAB_KIND = 'conductor-board'
 
     const zh = {
       title: 'Conductor 任务板',
@@ -152,6 +154,12 @@ window.__ModuleLoader__.load({
 
     const CSS = `
 .dsh-cb { border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-1); border-radius:10px; margin:8px 0 0; overflow:hidden; font-size:12px; color:var(--dsw-alias-label-primary); }
+/* The composer dock is a single flex row shared with the activity/usage pills.
+   When the board is present, let the row wrap and give the board its own line,
+   centered at the composer card width. */
+[data-composer-dock]:has(.dsh-cb) { flex-wrap:wrap; align-items:flex-start; row-gap:0; }
+[data-composer-dock]:has(.dsh-cb) > .dsh-cb,
+[data-composer-dock] > *:has(> .dsh-cb) { flex:0 0 100%; width:100%; max-width:var(--dsh-composer-card-max-width); margin:8px auto 0; }
 .dsh-cb-head { display:flex; align-items:center; gap:4px; padding:5px 8px 5px 4px; }
 .dsh-cb-toggle { flex:1; min-width:0; display:flex; align-items:center; gap:8px; border:0; background:transparent; color:inherit; padding:4px 6px; border-radius:6px; cursor:pointer; text-align:left; font:inherit; }
 .dsh-cb-toggle:hover { background:var(--dsw-alias-bg-layer-2); }
@@ -248,6 +256,12 @@ window.__ModuleLoader__.load({
 @media (max-width:900px) { .dsh-cb-columns { grid-template-columns:1fr; } .dsh-cb-page { padding:16px; } }
 @media (max-width:720px) { .dsh-cb-stats { display:none; } .dsh-cb-role { max-width:120px; } }
 @media (prefers-reduced-motion:reduce) { .dsh-cb-dot.running { animation:none; } }
+.dsh-cb-launcher { width:28px; height:28px; border:0; background:transparent; color:var(--dsw-alias-label-secondary); border-radius:6px; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer; flex:none; }
+.dsh-cb-launcher:hover { background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-primary); }
+.dsh-cb-launcher:focus-visible { outline:2px solid var(--dsw-alias-brand-primary); outline-offset:1px; }
+.dsh-cb-compact { padding:12px; }
+.dsh-cb-compact .dsh-cb-columns { grid-template-columns:1fr; }
+.dsh-cb-compact .dsh-cb-page-title { font-size:16px; }
 `
 
     const ACTIVE = new Set(['queued', 'starting', 'running'])
@@ -278,6 +292,10 @@ window.__ModuleLoader__.load({
 
     function taskKeyOf(task) {
       return `${task.session}:${task.id}`
+    }
+
+    function selectSessionId(snapshot) {
+      return snapshot.sessionId
     }
 
     function useBoard(sessionId) {
@@ -392,8 +410,26 @@ window.__ModuleLoader__.load({
       )
     }
 
+    function ConductorLauncher(props) {
+      const tr = typeof props.t === 'function' ? props.t : (key) => key
+      return h(
+        'button',
+        {
+          type: 'button',
+          className: 'dsh-cb-launcher',
+          title: tr('page.title'),
+          'aria-label': tr('page.title'),
+          onClick: () => props.openBoard(),
+        },
+        h(BoardMark),
+      )
+    }
+
     function ConductorDock(props) {
-      const sessionId = props.sessionId ?? (props.session && props.session.id)
+      const hookSessionId =
+        typeof props.useSession === 'function' ? props.useSession(selectSessionId) : undefined
+      const sessionId =
+        props.sessionId ?? (props.session && props.session.id) ?? hookSessionId
       const tr = typeof props.t === 'function' ? props.t : (key) => key
 
       const [open, setOpen] = useState(() => {
@@ -1294,10 +1330,19 @@ window.__ModuleLoader__.load({
       )
     }
 
+    function ConductorTab(props) {
+      return h(ConductorPage, {
+        ...props,
+        compact: true,
+        focusSession: props.sessionId,
+      })
+    }
+
     function ConductorPage(props) {
       const tr = typeof props.t === 'function' ? props.t : (key) => key
+      const compact = props.compact === true
       const { data, error, reload } = useAllBoards()
-      const [sessionFilter, setSessionFilter] = useState('all')
+      const [sessionFilter, setSessionFilter] = useState(props.focusSession ?? 'all')
       const [view, setView] = useState('tasks')
       const [detail, setDetail] = useState(null)
       const [followup, setFollowup] = useState(null)
@@ -1687,7 +1732,7 @@ window.__ModuleLoader__.load({
 
       return h(
         'div',
-        { className: 'dsh-cb-page', 'data-testid': 'conductor-page' },
+        { className: `dsh-cb-page${compact ? ' dsh-cb-compact' : ''}`, 'data-testid': 'conductor-page' },
         h('style', { key: 'conductor-page-css' }, CSS),
         h(
           'div',
@@ -1795,20 +1840,6 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, { zh, en }))
         const t = ctx.locale.bind(NS)
-        ctx.slots.inject('conversation.composer.dock', () =>
-          ctx.slots.register(
-            {
-              name: 'conversation.composer.dock',
-              id: 'conductor-board',
-              order: 5,
-              locale: NS,
-              inject: () => ({
-                openPage: () => ctx.layout.selectPanel(PANEL_ID),
-              }),
-            },
-            ConductorDock,
-          ),
-        )
         ctx.slots.inject('main', () =>
           ctx.slots.register(
             {
@@ -1835,6 +1866,87 @@ window.__ModuleLoader__.load({
             ConductorPanelIcon,
           ),
         )
+
+        let boardTabState = 'idle'
+        let rightService
+        const ensureBoardTab = () => {
+          if (boardTabState === 'ready') return true
+          if (boardTabState === 'failed') return false
+          let tabs
+          let right
+          try {
+            tabs = ctx.get('sidebarRightTabs') ?? ctx.sidebarRightTabs
+            right = ctx.get('sidebarRight') ?? ctx.sidebarRight
+          } catch {
+            return false
+          }
+          if (
+            tabs === undefined ||
+            right === undefined ||
+            typeof tabs.register !== 'function' ||
+            typeof right.openTab !== 'function'
+          ) {
+            return false
+          }
+          try {
+            ctx.effect(() =>
+              tabs.register({
+                id: BOARD_TAB_ID,
+                kind: BOARD_TAB_KIND,
+                priority: 'extension',
+                title: () => t('page.title'),
+              }),
+            )
+            ctx.effect(() =>
+              ctx.slots.inject('sidebar.right.pane.tab', () =>
+                ctx.slots.register(
+                  {
+                    name: 'sidebar.right.pane.tab',
+                    key: BOARD_TAB_ID,
+                    locale: NS,
+                    inject: () => ({
+                      onNewSession: () => ctx.uiWorkspace.startSession(),
+                    }),
+                  },
+                  ConductorTab,
+                ),
+              ),
+            )
+            rightService = right
+            boardTabState = 'ready'
+            return true
+          } catch {
+            boardTabState = 'failed'
+            return false
+          }
+        }
+
+        const openBoard = () => {
+          if (ensureBoardTab() && rightService !== undefined) {
+            try {
+              rightService.openTab(BOARD_TAB_KIND, { params: {} })
+              return
+            } catch {
+              boardTabState = 'failed'
+            }
+          }
+          ctx.layout.selectPanel(PANEL_ID)
+        }
+
+        ctx.slots.inject('conversation.input.left', () =>
+          ctx.slots.register(
+            {
+              name: 'conversation.input.left',
+              id: 'conductor-launcher',
+              order: 5,
+              locale: NS,
+              inject: () => ({ openBoard }),
+            },
+            ConductorLauncher,
+          ),
+        )
+
+        ensureBoardTab()
       },
     }
   },

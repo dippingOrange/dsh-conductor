@@ -1001,8 +1001,6 @@ export function apply(ctx, rawConfig) {
 
   // ------------------------------------------------------------- HTTP bridge
 
-  const webServer = ctx.get('webServer')
-
   function sendJson(res, status, value) {
     const body = JSON.stringify(value)
     res.writeHead(status, {
@@ -1276,9 +1274,10 @@ export function apply(ctx, rawConfig) {
     return sendJson(res, 404, { error: 'not found' })
   }
 
-  if (webServer !== undefined) {
-    ctx.effect(() =>
-      webServer.register({
+  ctx.inject(['webServer'], (webCtx) => {
+    const server = webCtx.webServer
+    webCtx.effect(() =>
+      server.register({
         kind: 'prefix',
         path: '/conductor',
         handler: (req, res) => {
@@ -1290,7 +1289,7 @@ export function apply(ctx, rawConfig) {
         },
       }),
     )
-  }
+  })
 
   // ----------------------------------------------------------- system prompt
 

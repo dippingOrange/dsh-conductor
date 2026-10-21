@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.4] - 2026-10-21
+
+### Changed
+
+- The session selector and task cards now show the session title instead of the raw session id;
+  the full id remains available as a tooltip.
+
 ## [1.0.3] - 2026-10-21
 
 ### Changed

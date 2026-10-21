@@ -1050,10 +1050,24 @@ export function apply(ctx, rawConfig) {
     }
   }
 
+  function sessionTitleOf(sessionId) {
+    const titleService = ctx.get('sessionTitle')
+    const store = ctx.get('sessions')
+    if (titleService === undefined || store === undefined) return null
+    const session = store.get(sessionId)
+    if (session === undefined) return null
+    try {
+      return titleService.get(session)?.title ?? null
+    } catch {
+      return null
+    }
+  }
+
   function boardView(sessionId) {
     const board = boards.get(sessionId)
     return {
       session: sessionId,
+      title: sessionTitleOf(sessionId),
       maxConcurrent: config.maxConcurrent,
       updatedAt: Date.now(),
       tasks: board === undefined ? [] : boardTasks(board).map(serializeTask),
@@ -1204,6 +1218,7 @@ export function apply(ctx, rawConfig) {
       const sessions = [...boards.values()]
         .map((board) => ({
           session: board.parent.id,
+          title: sessionTitleOf(board.parent.id),
           tasks: boardTasks(board).map(serializeTask),
         }))
         .filter((entry) => entry.tasks.length > 0)

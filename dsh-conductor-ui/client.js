@@ -1502,7 +1502,7 @@ window.__ModuleLoader__.load({
             h(
               'div',
               { className: 'dsh-cb-sub', title: task.session },
-              `#${task.session.slice(-6)}${
+              `${sessionLabel(task.session)}${
                 task.followups > 0 ? ` · ${tr('label.followups')} ${task.followups}` : ''
               }`,
             ),
@@ -1564,6 +1564,14 @@ window.__ModuleLoader__.load({
       }
 
       const sessions = data !== null && Array.isArray(data.sessions) ? data.sessions : []
+      const sessionTitles = new Map(
+        sessions.map((entry) => [entry.session, entry.title]),
+      )
+      const sessionLabel = (id) => {
+        const title = sessionTitles.get(id)
+        if (typeof title === 'string' && title.trim() !== '') return title.trim()
+        return `#${id.slice(-6)}`
+      }
       const all = sessions.flatMap((entry) =>
         Array.isArray(entry.tasks)
           ? entry.tasks.map((task) => ({ ...task, session: entry.session }))
@@ -1638,7 +1646,7 @@ window.__ModuleLoader__.load({
                   h(
                     'span',
                     { className: 'dsh-cb-sub' },
-                    `#${detail.task.session.slice(-6)}`,
+                    sessionLabel(detail.task.session),
                   ),
                   h('span', { className: 'dsh-cb-spacer' }),
                   h(
@@ -1813,7 +1821,11 @@ window.__ModuleLoader__.load({
                     },
                     h('option', { value: 'all' }, tr('page.sessionAll')),
                     sessionIds.map((id) =>
-                      h('option', { key: id, value: id }, `#${id.slice(-6)}`),
+                      h(
+                        'option',
+                        { key: id, value: id, title: id },
+                        sessionLabel(id),
+                      ),
                     ),
                   ),
                   h(

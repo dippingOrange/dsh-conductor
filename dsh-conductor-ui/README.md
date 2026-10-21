@@ -1,6 +1,6 @@
 # Conductor Task Board（Web UI）
 
-这是 `@local/dsh-conductor` 的可视化面板，独立成一个 Client bundle，便于单独启停。
+这是 `@dippingorange/dsh-conductor` 的可视化面板，独立成一个 Client bundle，便于单独启停。
 
 ## 入口
 
@@ -40,7 +40,7 @@
 
 ## 数据来源
 
-由 `@local/dsh-conductor` 的 Host 半注册的同源接口：
+由 `@dippingorange/dsh-conductor` 的 Host 半注册的同源接口：
 
 | 方法 | 路径 | 作用 |
 |---|---|---|

@@ -3,6 +3,15 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.5] - 2026-10-21
+
+### Changed
+
+- Published on npm as `@dippingorange/dsh-conductor` and `@dippingorange/dsh-conductor-ui`.
+- Added `engines.dsh`, `publishConfig`, and a per-package MIT `LICENSE` for registry consumers.
+- Installation docs now use the npm package names; the local checkout remains supported for
+  development.
+
 ## [1.0.4] - 2026-10-21
 
 ### Changed

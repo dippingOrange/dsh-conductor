@@ -1,7 +1,6 @@
 {
-  "name": "@local/dsh-conductor",
-  "version": "1.0.4",
-  "private": true,
+  "name": "@dippingorange/dsh-conductor",
+  "version": "1.0.5",
   "description": "Route implementation work from the main model to executor models and collect their reports.",
   "license": "MIT",
   "repository": {
@@ -30,8 +29,15 @@
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "dsh": ">=0.2.1-rc.2 <0.3.0"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

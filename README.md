@@ -45,22 +45,23 @@ the **user** — not the model — decide which model each role uses.
 
 ## Install
 
-```sh
-git clone https://github.com/dippingOrange/dsh-conductor.git
-```
-
-Then install the two bundles from the checkout, using DSH's Plugin Manager
+Install both bundles from npm, using DSH's Plugin Manager
 (**Settings → Plugins → install bundle**) or the CLI:
 
 ```sh
+dsh plugin install @dippingorange/dsh-conductor
+dsh plugin install @dippingorange/dsh-conductor-ui
+```
+
+For local development, install the checkout instead:
+
+```sh
+git clone https://github.com/dippingOrange/dsh-conductor.git
 dsh plugin install /path/to/dsh-conductor/dsh-conductor
 dsh plugin install /path/to/dsh-conductor/dsh-conductor-ui
 ```
 
 Refresh the Web UI once after installing. Both plugins can be enabled or disabled independently.
-
-> `@local/dsh-conductor` and `@local/dsh-conductor-ui` are local DSH bundle identifiers,
-> not npm package names.
 
 ## Configure
 

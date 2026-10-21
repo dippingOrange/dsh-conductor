@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: '@local/dsh-conductor-ui',
+  id: '@dippingorange/dsh-conductor-ui',
   factory(require) {
     const React = require('react')
     const { useCallback, useEffect, useRef, useState } = React
@@ -7,7 +7,7 @@ window.__ModuleLoader__.load({
 
     const NS = 'conductor'
     const PANEL_ID = 'conductor-tasks'
-    const BOARD_TAB_ID = '@local/dsh-conductor-ui/board'
+    const BOARD_TAB_ID = '@dippingorange/dsh-conductor-ui/board'
     const BOARD_TAB_KIND = 'conductor-board'
 
     const zh = {

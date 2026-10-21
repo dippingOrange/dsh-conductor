@@ -1,6 +1,6 @@
 - insert:
     - id: conductor
-      name: '@local/dsh-conductor'
+      name: '@dippingorange/dsh-conductor'
       config:
         # Maximum children running at once. The subagent service also caps
         # each delegation tree (maxActiveSubagents, default 8).

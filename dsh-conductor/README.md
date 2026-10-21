@@ -18,8 +18,15 @@
 
 ## 安装
 
-在 DSH 的 **Plugin Manager → 安装 bundle** 里分别选择本仓库的 `dsh-conductor` 和
-`dsh-conductor-ui` 两个目录；或者用 CLI：
+从 npm 安装：
+
+```sh
+dsh plugin install @dippingorange/dsh-conductor
+dsh plugin install @dippingorange/dsh-conductor-ui
+```
+
+本地开发时，在 DSH 的 **Plugin Manager → 安装 bundle** 里选择本仓库的
+`dsh-conductor` 和 `dsh-conductor-ui` 两个目录，或使用：
 
 ```sh
 dsh plugin install /path/to/dsh-conductor/dsh-conductor
@@ -47,7 +54,7 @@ dsh plugin install /path/to/dsh-conductor/dsh-conductor-ui
 
 ## 可视化任务板
 
-另装了一个独立的 Web UI bundle `@local/dsh-conductor-ui`，提供两个入口：
+另装了一个独立的 Web UI bundle `@dippingorange/dsh-conductor-ui`，提供两个入口：
 
 **1. 输入框工具栏入口（日常使用）**：输入框卡片底部工具栏最左侧的 `▦` 图标。
 点击后在**右侧栏**打开「任务板」tab，聊天和看板并排，不再占用输入框下方的

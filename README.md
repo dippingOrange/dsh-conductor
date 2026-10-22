@@ -54,6 +54,9 @@ the **user** — not the model — decide which model each role uses.
   and may close with a concise conclusion.
 - Publisher task guidance prefers file paths and a short `context`; long documents and code belong
   in files the executor can read.
+- Native `subagent` / `subagent_fork` spawn tools are disabled in the `ptc` preset; the publisher
+  delegates only through `dispatch_tasks`. `list_agents` remains available for diagnostics, and the
+  `maxActiveSubagents: 5` safety cap is unchanged.
 - Cancel, follow up, and inspect full reports from the UI or from the model's tools.
 - No build step, no npm runtime dependencies; the UI uses only the browser React module table.
 

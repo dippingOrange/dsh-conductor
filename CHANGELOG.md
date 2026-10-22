@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.13] - 2026-10-22
+
+### Changed
+
+- Disabled the native `subagent` / `subagent_fork` spawn tools in the `ptc` preset while keeping
+  `list_agents` for diagnostics. Conductor's `dispatch_tasks`, follow-ups, and the
+  `maxActiveSubagents: 5` safety cap are unchanged.
+- The publisher system prompt now explicitly forbids native subagents and requires all delegation
+  to go through `dispatch_tasks` with a configured executor role.
+
 ## [1.0.12] - 2026-10-22
 
 ### Changed

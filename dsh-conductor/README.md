@@ -119,6 +119,12 @@ background subagent 完成通知，即使发布者已经先回复了用户。发
 
 系统提示、`dispatch_tasks` 描述和 `context` 参数 schema 都会这样引导。
 
+### 原生子代理已禁用
+
+`ptc` 预设中已禁用 `tool-subagent` 和 `tool-subagent-fork`，发布者只能通过
+`dispatch_tasks` 委派；`list_agents` 保留用于诊断。Conductor 自身仍使用 subagent 服务，
+`maxActiveSubagents: 5` 不变。
+
 ## 可视化任务板
 
 另装了一个独立的 Web UI bundle `@dippingorange/dsh-conductor-ui`，提供两个入口：

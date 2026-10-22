@@ -32,6 +32,10 @@ the **user** — not the model — decide which model each role uses.
   return format.
 - Fixed executor roles: `id + name + provider + model + description`, editable in the Web UI.
 - Persistent roles at `$DSH_HOME/conductor/roles.json` (no API keys in this file).
+- Strict roles-only routing: `inherit: true` and ad-hoc provider/model routes are rejected unless the
+  user explicitly enables ad-hoc routes. Role changes are audited to
+  `$DSH_HOME/conductor/role-audit.jsonl` and exposed by `GET /conductor/roles/audit`.
+- A global cap of 5 live subagent activations, covering Conductor tasks and native subagents.
 - A per-session right-sidebar board opened from the composer toolbar, plus a global full-page board
   with active/done/failed columns.
 - Per-executor context accounting: usage percentage, turns since the last compaction, and automatic

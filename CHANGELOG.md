@@ -3,6 +3,22 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.8] - 2026-10-22
+
+### Fixed
+
+- `dispatch_tasks` now rejects `inherit: true` under the default roles-only policy. The publisher
+  can no longer route a task onto its own provider/model unless the user explicitly enables ad-hoc
+  routes.
+- Role changes are appended to `$DSH_HOME/conductor/role-audit.jsonl` with the changed executor
+  fields, lead, policy, timestamp, and source; `GET /conductor/roles/audit` exposes the recent
+  entries. This makes future provider/model changes traceable.
+
+### Changed
+
+- Added a global `maxActiveSubagents: 5` cap in the bundle patch, covering Conductor tasks and any
+  native subagent the publisher opens. Conductor itself still runs at most four children at once.
+
 ## [1.0.7] - 2026-10-21
 
 ### Changed

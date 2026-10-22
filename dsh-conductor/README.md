@@ -46,11 +46,29 @@ dsh plugin install /path/to/dsh-conductor/dsh-conductor-ui
 | `cancel_task` | 取消任务，释放并发槽位 |
 | `list_executors` | 列出用户配置的执行者角色（id、名称、provider/model），以及当前路由策略 |
 
-每个任务的路由三选一：
+每个任务的路由：
 
-- `executor: "coder"` —— 用面板里配置好的执行者角色（推荐，默认策略唯一允许的方式）；
+- `executor: "coder"` —— 用面板里配置好的执行者角色；默认策略下这是**唯一允许**的方式；
 - `provider: "...", model: "..."` —— 仅当你启用了「允许旗舰临时指定 provider/model」；
-- `inherit: true` —— 复用主模型自己的路由（留给必须最强模型的子任务）。
+- `inherit: true` —— 仅当启用 ad-hoc 路由时可用；默认 roles-only 策略下会直接报错。
+
+### 角色修改审计
+
+每次通过 `/conductor/roles` 修改角色时，会追加一条到
+`$DSH_HOME/conductor/role-audit.jsonl`，记录时间、lead、策略、改了哪个执行者的
+provider/model/name/description/阈值。最近记录可通过：
+
+```text
+GET /conductor/roles/audit?limit=50
+```
+
+审计是追踪手段，不是安全边界：模型如果有 shell/写文件权限，仍可能直接改
+`roles.json`；默认 roles-only + 禁用 inherit 只是堵住插件工具侧最直接的绕过。
+
+### 子代理上限
+
+bundle patch 把全局 `maxActiveSubagents` 限制为 **5**，Conductor 任务和发布者原生子代理
+都计入这个上限；Conductor 自己最多同时跑 4 个任务。
 
 ## 可视化任务板
 

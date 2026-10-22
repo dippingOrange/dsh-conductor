@@ -36,3 +36,11 @@
   disabled: false
 - id: command-compact
   disabled: false
+
+# Global cap on live subagent activations, covering Conductor tasks and any
+# native subagent the publisher opens. Conductor itself still runs at most
+# maxConcurrent children at a time.
+- id: subagent
+  name: '@deepseek-ai/dsh-subagent'
+  config:
+    maxActiveSubagents: 5

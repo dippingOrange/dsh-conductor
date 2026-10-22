@@ -101,11 +101,22 @@ apply(ctx, {
 
 const exec = { agent: { id: 'parent-1' }, signal: new AbortController().signal }
 
+let inheritRejected = false
+try {
+  await registered.get('dispatch_tasks').execute(
+    { tasks: [{ role: 'Coder', task: 'Inherit probe', inherit: true }] },
+    exec,
+  )
+} catch (error) {
+  inheritRejected = /inherit is disabled/.test(String(error))
+}
+if (!inheritRejected) throw new Error('roles-only policy did not reject inherit')
+
 const dispatch = await registered.get('dispatch_tasks').execute(
   {
     tasks: [
       { role: 'Coder', task: 'Implement A', acceptance: ['works'], executor: 'coder' },
-      { role: 'Coder', task: 'Fail B', inherit: true },
+      { role: 'Coder', task: 'Fail B', executor: 'coder' },
     ],
     wait_seconds: 0,
   },

@@ -13,7 +13,7 @@
  * slot; `task_followup` cold-resumes it when the lead needs another round.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -627,14 +627,17 @@ export function apply(ctx, rawConfig) {
       if (provider !== '' || model !== '') {
         throw new Error(`tasks[${index}]: inherit cannot be combined with provider/model`)
       }
+      if (!roleState.allowAdHocRoutes) {
+        throw new Error(
+          `tasks[${index}]: inherit is disabled while the route policy is roles-only; choose an executor role from list_executors`,
+        )
+      }
     } else {
       if (provider === '' || model === '') {
         if (provider !== '' || model !== '') {
           throw new Error(`tasks[${index}]: provider and model must be supplied together`)
         }
-        throw new Error(
-          `tasks[${index}]: choose an executor role from list_executors, or inherit: true`,
-        )
+        throw new Error(`tasks[${index}]: choose an executor role from list_executors`)
       }
       if (!roleState.allowAdHocRoutes) {
         throw new Error(
@@ -795,7 +798,7 @@ export function apply(ctx, rawConfig) {
   registerTool({
     name: 'dispatch_tasks',
     description:
-      'Start one or more background execution tasks on executor models and return their task ids immediately. Each task is a self-contained child agent with the same tools and workspace as you, so it can read, edit, and run code. Use this to keep decomposition, architecture, and review here while routing implementation to executor roles. The user owns the role→model mapping: every task must name an `executor` role from `list_executors` (or `inherit: true` for a strong-model subtask). Do not invent provider/model routes; explicit routes work only when the user enabled ad-hoc routes. Start independent tasks in ONE call, then collect them with `wait_tasks` (or pass `wait_seconds` here to block for the first results). Results remain available for the rest of this session through `wait_tasks` and `task_result`.',
+      'Start one or more background execution tasks on executor models and return their task ids immediately. Each task is a self-contained child agent with the same tools and workspace as you, so it can read, edit, and run code. Use this to keep decomposition, architecture, and review here while routing implementation to executor roles. The user owns the role→model mapping: every task must name an `executor` role from `list_executors`. Do not invent provider/model routes or use `inherit` unless the user explicitly enabled ad-hoc routes. Start independent tasks in ONE call, then collect them with `wait_tasks` (or pass `wait_seconds` here to block for the first results). Results remain available for the rest of this session through `wait_tasks` and `task_result`.',
     parameters: {
       type: 'object',
       properties: {
@@ -858,7 +861,7 @@ export function apply(ctx, rawConfig) {
               inherit: {
                 type: 'boolean',
                 description:
-                  "Use this session's own provider/model for the child. Use for subtasks that need the strongest model.",
+                  "Use the publisher's own provider/model for the child. Only accepted when the user enabled ad-hoc routes; rejected under roles-only.",
               },
               reasoning_effort: {
                 type: 'string',
@@ -1395,8 +1398,16 @@ export function apply(ctx, rawConfig) {
       } catch (error) {
         return sendJson(res, 400, { error: messageOf(error) })
       }
+      const before = roleState
+      appendRoleAudit(before, next, 'http', logger)
       roleState = next
       return sendJson(res, 200, { ok: true, ...roleState })
+    }
+
+    if (req.method === 'GET' && url.pathname === '/conductor/roles/audit') {
+      const rawLimit = Number(url.searchParams.get('limit') ?? 50)
+      const limit = Number.isFinite(rawLimit) ? Math.min(200, Math.max(1, Math.round(rawLimit))) : 50
+      return sendJson(res, 200, { entries: readRoleAudit(limit) })
     }
 
     if (req.method === 'GET' && url.pathname === '/conductor/routes') {
@@ -1468,11 +1479,13 @@ export function apply(ctx, rawConfig) {
       } catch (error) {
         return sendJson(res, 409, { error: messageOf(error) })
       }
+      const before = roleState
       roleState = {
         ...roleState,
         lead: { provider, model, ...(reasoningEffort === '' ? {} : { reasoningEffort }) },
       }
       writeRoleState(roleState)
+      appendRoleAudit(before, roleState, 'http', logger)
       return sendJson(res, 200, { ok: true, lead: roleState.lead })
     }
 
@@ -1706,6 +1719,104 @@ function rolesFilePath() {
       ? process.env.DSH_HOME
       : join(homedir(), '.dsh')
   return join(home, 'conductor', 'roles.json')
+}
+
+function roleAuditFilePath() {
+  const home =
+    typeof process.env.DSH_HOME === 'string' && process.env.DSH_HOME !== ''
+      ? process.env.DSH_HOME
+      : join(homedir(), '.dsh')
+  return join(home, 'conductor', 'role-audit.jsonl')
+}
+
+function roleChanges(before, after) {
+  const changes = []
+  const fields = [
+    'provider',
+    'model',
+    'name',
+    'description',
+    'reasoningEffort',
+    'contextCompactionPercent',
+  ]
+  const ids = new Set([
+    ...Object.keys(before.executors ?? {}),
+    ...Object.keys(after.executors ?? {}),
+  ])
+  for (const id of ids) {
+    const left = before.executors?.[id]
+    const right = after.executors?.[id]
+    if (left === undefined || right === undefined) {
+      changes.push({ scope: 'executor', executor: id, field: '*', from: left ?? null, to: right ?? null })
+      continue
+    }
+    for (const field of fields) {
+      if (JSON.stringify(left[field]) !== JSON.stringify(right[field])) {
+        changes.push({
+          scope: 'executor',
+          executor: id,
+          field,
+          from: left[field] ?? null,
+          to: right[field] ?? null,
+        })
+      }
+    }
+  }
+  for (const field of ['provider', 'model', 'reasoningEffort']) {
+    if (JSON.stringify(before.lead?.[field]) !== JSON.stringify(after.lead?.[field])) {
+      changes.push({
+        scope: 'lead',
+        field,
+        from: before.lead?.[field] ?? null,
+        to: after.lead?.[field] ?? null,
+      })
+    }
+  }
+  if (before.allowAdHocRoutes !== after.allowAdHocRoutes) {
+    changes.push({
+      scope: 'policy',
+      field: 'allowAdHocRoutes',
+      from: before.allowAdHocRoutes ?? null,
+      to: after.allowAdHocRoutes ?? null,
+    })
+  }
+  return changes
+}
+
+function appendRoleAudit(before, after, source, logger) {
+  try {
+    const changes = roleChanges(before, after)
+    if (changes.length === 0) return
+    const file = roleAuditFilePath()
+    mkdirSync(dirname(file), { recursive: true })
+    const entry = {
+      at: Date.now(),
+      source,
+      lead: after.lead ?? null,
+      allowAdHocRoutes: after.allowAdHocRoutes === true,
+      changes,
+    }
+    appendFileSync(file, `${JSON.stringify(entry)}\n`, 'utf8')
+  } catch (error) {
+    logger?.warn?.(`conductor: could not append role audit: ${String(error)}`)
+  }
+}
+
+function readRoleAudit(limit) {
+  const file = roleAuditFilePath()
+  if (!existsSync(file)) return []
+  try {
+    const lines = readFileSync(file, 'utf8').trim().split(/\r?\n/).filter(Boolean)
+    return lines.slice(-limit).map((line) => {
+      try {
+        return JSON.parse(line)
+      } catch {
+        return null
+      }
+    }).filter((entry) => entry !== null)
+  } catch {
+    return []
+  }
 }
 
 function normalizeRoleState(raw, seed) {

@@ -44,6 +44,8 @@ the **user** — not the model — decide which model each role uses.
 - Green unread badges on the Tasks icon and the Executors tab after a compaction.
 - Follow-ups are shown as **reworking/running** in the board and return to completed when the child
   is inactive.
+- Executor completions are delivered to the publisher as background subagent notices, even if the
+  publisher has already replied to the user.
 - Board snapshot/restore: `GET /conductor/export` and `POST /conductor/import` preserve terminal
   tasks and reports across a plugin reload.
 - Executor failures such as `max-tokens` or an empty closing report are surfaced as task errors.

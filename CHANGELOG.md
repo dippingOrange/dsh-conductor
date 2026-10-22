@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.11] - 2026-10-22
+
+### Fixed
+
+- Executor completions now reach the publisher as a model-facing subagent notice (`delivery:
+  'parent'`). Previously the plugin collected the result itself (`delivery: 'caller'`), so a
+  publisher that replied to the user immediately could miss the completion entirely. The system
+  prompt and `dispatch_tasks` description now tell the lead not to claim completion early and to
+  relay the notice when it arrives.
+
 ## [1.0.10] - 2026-10-22
 
 ### Changed

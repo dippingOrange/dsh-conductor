@@ -98,6 +98,16 @@ SVG/HTML/代码写入文件，最终只返回简短报告。
 - 不得给建议、优先级或下一步方案；不要出现「建议」「下一步」「可以考虑」这类段落
 - 最终结论可以适当精简，不要重复整份报告
 
+### 完成通知
+
+`dispatch_tasks` 使用 `delivery: 'parent'` 启动 child，因此执行者完成时，发布者会收到一条
+background subagent 完成通知，即使发布者已经先回复了用户。发布者的系统提示要求：
+
+- 任务未完成时不能声称已完成
+- 收到完成通知后，把结果转告用户，或调用 `wait_tasks` 取完整报告
+
+> 这条通知依赖 DSH 的 session 持久化；`task_followup` 的完成通知走同一条通道。
+
 ## 可视化任务板
 
 另装了一个独立的 Web UI bundle `@dippingorange/dsh-conductor-ui`，提供两个入口：

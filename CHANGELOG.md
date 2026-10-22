@@ -3,6 +3,15 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.10] - 2026-10-22
+
+### Changed
+
+- Tightened the executor prompt: executors execute and report facts; they must not return whole
+  files, full diffs, or generated artifacts, and must not give recommendations, priorities, or
+  next-step suggestions. The lead owns decisions. Reports keep the key facts (status, changed
+  paths, verification, acceptance, blockers) and may close with a concise conclusion.
+
 ## [1.0.9] - 2026-10-22
 
 ### Fixed

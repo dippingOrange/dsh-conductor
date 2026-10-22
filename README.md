@@ -47,6 +47,9 @@ the **user** — not the model — decide which model each role uses.
 - Board snapshot/restore: `GET /conductor/export` and `POST /conductor/import` preserve terminal
   tasks and reports across a plugin reload.
 - Executor failures such as `max-tokens` or an empty closing report are surfaced as task errors.
+- Executor reports are fact-only: no whole files, full diffs, or generated artifacts; no
+  recommendations or next-step suggestions. The lead makes decisions; reports keep the key facts
+  and may close with a concise conclusion.
 - Cancel, follow up, and inspect full reports from the UI or from the model's tools.
 - No build step, no npm runtime dependencies; the UI uses only the browser React module table.
 

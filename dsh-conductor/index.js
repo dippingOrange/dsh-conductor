@@ -19,11 +19,12 @@ import { dirname, join } from 'node:path'
 
 const DEFAULT_REPORT_FORMAT = `Use Markdown with exactly these sections:
 1. Status — done | partial | blocked
-2. Changes — every file changed and why
-3. Verification — the commands you ran and what they showed
+2. Changes — file paths plus a one-line reason for each; no full diffs or file contents
+3. Verification — the commands you ran and the key evidence; no full logs
 4. Acceptance criteria — each criterion marked pass or fail, with evidence
-5. Risks / follow-ups — anything the lead must decide
-Do not paste whole files; the lead can open them.`
+5. Blockers / open facts — unresolved facts only; no recommendations or next-step suggestions
+Keep the report concise. Do not paste whole files, full diffs, or generated artifacts; the lead can open them.
+You execute; the lead decides. State facts, not advice. The closing conclusion may be short.`
 
 const TERMINAL = new Set(['completed', 'failed', 'cancelled'])
 const REWORK_POLL_MS = 1500
@@ -859,12 +860,18 @@ export function apply(ctx, rawConfig) {
     lines.push(
       '',
       '## Working rules',
-      '- You own this assignment end to end. Do not ask the lead questions; make reasonable assumptions and state them.',
+      '- You own the execution end to end. Do not ask the lead questions; make reasonable assumptions and state them as facts.',
       '- Read before editing. Keep changes scoped to the assignment and never revert unrelated work.',
       '- Run the relevant checks or tests. If a check cannot run, say so and explain why.',
       '- Write large artifacts (SVG, HTML, generated code) to files with tools; never paste a whole artifact into your final response.',
       '- Your final response is a short report. If a tool or check fails, report the failure instead of regenerating the artifact in text.',
       '- You may delegate only if the assignment explicitly asks for it; otherwise do the work yourself.',
+      '',
+      '## Report rules',
+      '- You execute; the lead decides. Do not give recommendations, priorities, or next-step suggestions.',
+      '- Never return whole files, full diffs, or generated artifacts. Cite file paths and include only essential, short excerpts.',
+      '- The report must contain the key facts: status, changed paths, verification evidence, acceptance pass/fail, and blockers/open facts.',
+      '- Do not add a proposal or "next steps" section. The closing conclusion may be concise; do not repeat the whole report.',
       '',
       '## Required final report',
       spec.returnFormat ?? DEFAULT_REPORT_FORMAT,

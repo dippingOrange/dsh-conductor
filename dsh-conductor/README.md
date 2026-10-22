@@ -90,6 +90,14 @@ POST /conductor/import   # 插件重载后恢复终态任务（running/queued �
 的 `error`，不再出现「completed + 空 preview + error:null」。执行者 prompt 也要求将大型
 SVG/HTML/代码写入文件，最终只返回简短报告。
 
+### 执行者报告契约
+
+- 执行者只负责执行，决定权在发布者
+- 不得返回整个文件、完整 diff 或生成的产物；只给路径和必要短摘录
+- 必须汇报关键事实：状态、改动路径、验证证据、验收 pass/fail、阻塞/未决事实
+- 不得给建议、优先级或下一步方案；不要出现「建议」「下一步」「可以考虑」这类段落
+- 最终结论可以适当精简，不要重复整份报告
+
 ## 可视化任务板
 
 另装了一个独立的 Web UI bundle `@dippingorange/dsh-conductor-ui`，提供两个入口：

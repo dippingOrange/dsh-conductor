@@ -50,8 +50,11 @@
 | GET | `/conductor/board?session=<id>` | 当前会话的任务列表 |
 | GET | `/conductor/boards` | 所有会话的任务（整页看板用） |
 | GET | `/conductor/result?session=<id>&task=<T1>` | 单个任务的完整报告 |
+| GET | `/conductor/export` | 导出终态任务、完整报告、上下文统计 |
+| POST | `/conductor/import` | 插件重载后恢复终态任务（running/queued 跳过） |
 | POST | `/conductor/action` | `{session, task, action: "cancel" \| "followup", message?}` |
 | GET | `/conductor/roles` | 发布者、执行者角色、路由策略、上下文统计 |
+| GET | `/conductor/roles/audit` | 角色修改审计（最近 N 条） |
 | GET | `/conductor/notifications` | 压缩未读绿点状态 |
 | POST | `/conductor/notifications/read` | `{target: "board" \| "roles"}` 清除绿点 |
 | POST | `/conductor/roles` | 保存完整的角色配置 |

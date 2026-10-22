@@ -3,6 +3,24 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.9] - 2026-10-22
+
+### Fixed
+
+- `task_followup` now marks a terminal task as `running`/reworking and starts a watcher that
+  returns it to `completed` when the child becomes inactive. The board finally shows an active
+  rework instead of leaving it in the completed column.
+- Executors that stop with `max-tokens` or complete without a closing report now produce a visible
+  task error instead of an empty preview with `error: null`. The prompt also tells executors to
+  write large SVGs/HTML/code to files and keep the final report short.
+
+### Added
+
+- `GET /conductor/export` and `POST /conductor/import` for snapshotting and restoring terminal
+  tasks after a plugin reload. Restored tasks keep their reports, child ids, follow-up count, and
+  context stats; active tasks are skipped.
+- A rework badge in the task card.
+
 ## [1.0.8] - 2026-10-22
 
 ### Fixed

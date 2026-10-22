@@ -61,6 +61,7 @@ window.__ModuleLoader__.load({
       'label.done': '已完成',
       'label.failed': '失败',
       'label.followups': '追加指令',
+      'label.rework': '返工中',
       'filter.all': '全部',
       'filter.active': '进行中',
       'filter.done': '已完成',
@@ -138,6 +139,7 @@ window.__ModuleLoader__.load({
       'label.done': 'done',
       'label.failed': 'failed',
       'label.followups': 'follow-ups',
+      'label.rework': 'reworking',
       'filter.all': 'All',
       'filter.active': 'Active',
       'filter.done': 'Done',
@@ -1607,6 +1609,9 @@ window.__ModuleLoader__.load({
                       : ` · ${task.turnsSinceCompact} ${tr('roles.turns')}`
                   }`,
                 ),
+            task.rework === true
+              ? h('div', { className: 'dsh-cb-sub' }, tr('label.rework'))
+              : null,
             preview === null ? null : h('div', { className: 'dsh-cb-preview' }, preview),
             task.error ? h('div', { className: 'dsh-cb-error' }, task.error) : null,
             followup !== null && followup.key === key ? followupEditor(task) : null,

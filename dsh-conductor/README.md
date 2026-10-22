@@ -70,6 +70,26 @@ GET /conductor/roles/audit?limit=50
 bundle patch 把全局 `maxActiveSubagents` 限制为 **5**，Conductor 任务和发布者原生子代理
 都计入这个上限；Conductor 自己最多同时跑 4 个任务。
 
+### follow-up 状态
+
+对已完成/失败任务执行 `task_followup` 后，任务会重新标记为 `running` 并显示「返工中」；
+插件会轮询 child 的活跃状态，child 变为 inactive 后把任务改回 `completed`。
+
+### 任务板快照与恢复
+
+```text
+GET  /conductor/export   # 导出所有会话的终态任务、完整报告、统计
+POST /conductor/import   # 插件重载后恢复终态任务（running/queued 会跳过）
+```
+
+导入使用当前仍然存活的 session；恢复的任务保留 `childId`、报告、follow-up 数量与上下文统计。
+
+### 空报告与 max-tokens
+
+执行者因输出 token 上限（`max-tokens`）停止、或完成但没有 closing report 时，任务会显示明确
+的 `error`，不再出现「completed + 空 preview + error:null」。执行者 prompt 也要求将大型
+SVG/HTML/代码写入文件，最终只返回简短报告。
+
 ## 可视化任务板
 
 另装了一个独立的 Web UI bundle `@dippingorange/dsh-conductor-ui`，提供两个入口：

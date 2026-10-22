@@ -26,6 +26,9 @@ const DEFAULT_REPORT_FORMAT = `Use Markdown with exactly these sections:
 Do not paste whole files; the lead can open them.`
 
 const TERMINAL = new Set(['completed', 'failed', 'cancelled'])
+const REWORK_POLL_MS = 1500
+const REWORK_GRACE_MS = 5000
+const REWORK_TIMEOUT_MS = 30 * 60 * 1000
 
 const DEFAULTS = {
   provider: 'spawn',
@@ -169,10 +172,93 @@ export function apply(ctx, rawConfig) {
       followups: [],
       disposed: false,
       finalizing: undefined,
+      rework: false,
+      reworkTimer: undefined,
+      reworkStartedAt: undefined,
       cancelRequested: false,
     }
     board.tasks.set(task.id, task)
     board.queue.push(task)
+    return task
+  }
+
+  function restoreTask(board, snapshot, index) {
+    const id = typeof snapshot.id === 'string' && snapshot.id !== '' ? snapshot.id : `T${index + 1}`
+    const seq = Number(id.replace(/^T/i, '')) || index + 1
+    const status = TERMINAL.has(snapshot.status) ? snapshot.status : 'failed'
+    const followups = Array.isArray(snapshot.followupsList)
+      ? snapshot.followupsList
+      : Array.from({ length: Number(snapshot.followups) || 0 }, () => ({
+          message: '',
+          at: snapshot.finishedAt ?? 0,
+        }))
+    const resultText = typeof snapshot.result === 'string' ? snapshot.result : undefined
+    const stats =
+      snapshot.stats ??
+      {
+        percent: snapshot.contextPercent ?? null,
+        tokens: snapshot.contextTokens ?? null,
+        window: snapshot.contextWindow ?? null,
+        turnsSinceCompact: snapshot.turnsSinceCompact ?? 0,
+        lastCompactedAt: snapshot.compactedAt ?? null,
+        compacted: snapshot.compacted === true,
+        compactionPercent: snapshot.compactionPercent ?? undefined,
+      }
+    const task = {
+      id,
+      seq,
+      board,
+      parent: board.parent,
+      role: snapshot.role ?? 'restored',
+      summary: snapshot.summary ?? '',
+      promptText: '',
+      provider: snapshot.provider ?? undefined,
+      model: snapshot.model ?? undefined,
+      reasoningEffort: undefined,
+      compactionPercent: stats.compactionPercent ?? snapshot.compactionPercent ?? undefined,
+      routeLabel: snapshot.route ?? 'restored',
+      executorName: snapshot.executor ?? undefined,
+      executorLabel: snapshot.executorName ?? undefined,
+      cwd: undefined,
+      status,
+      createdAt: snapshot.createdAt ?? Date.now(),
+      startedAt: snapshot.startedAt ?? undefined,
+      finishedAt: snapshot.finishedAt ?? Date.now(),
+      childId: snapshot.childId ?? undefined,
+      activation: undefined,
+      controller: new AbortController(),
+      waiters: new Set(),
+      resultText,
+      structured: undefined,
+      stopReason: snapshot.stopReason ?? undefined,
+      diagnostic: undefined,
+      error: snapshot.error ?? undefined,
+      followups,
+      disposed: true,
+      finalizing: undefined,
+      rework: false,
+      reworkTimer: undefined,
+      reworkStartedAt: undefined,
+      cancelRequested: false,
+      stats,
+    }
+    if (task.status === 'failed' && (task.error === undefined || task.error === '')) {
+      task.error =
+        task.stopReason === 'max-tokens'
+          ? 'executor hit its output token limit before producing a closing report; narrow the task or require file writes instead of pasting artifacts'
+          : task.stopReason
+            ? `executor stopped with ${String(task.stopReason)} before producing a report`
+            : 'task failed without a report'
+    }
+    if (
+      task.status === 'completed' &&
+      (resultText === undefined || resultText.trim() === '') &&
+      task.error === undefined
+    ) {
+      task.error = 'executor completed without a closing report'
+    }
+    board.tasks.set(id, task)
+    board.counter = Math.max(board.counter, seq)
     return task
   }
 
@@ -200,6 +286,11 @@ export function apply(ctx, rawConfig) {
   async function cancelTask(task) {
     const previous = task.status
     if (TERMINAL.has(previous)) return { previous, cancelled: false }
+    if (task.reworkTimer !== undefined) {
+      clearTimeout(task.reworkTimer)
+      task.reworkTimer = undefined
+    }
+    task.rework = false
     task.cancelRequested = true
     task.controller.abort(new Error('cancelled by lead'))
     await disposeTask(task)
@@ -215,6 +306,7 @@ export function apply(ctx, rawConfig) {
     if (task.childId === undefined) {
       throw new Error(`${task.id} has not started yet (${task.status})`)
     }
+    const wasTerminal = TERMINAL.has(task.status)
     await ctx.subagents.sendMessage(
       task.board.parent,
       task.childId,
@@ -222,6 +314,15 @@ export function apply(ctx, rawConfig) {
       { signal },
     )
     task.followups.push({ message, at: Date.now() })
+    if (wasTerminal) {
+      if (task.reworkTimer !== undefined) clearTimeout(task.reworkTimer)
+      task.status = 'running'
+      task.rework = true
+      task.reworkStartedAt = Date.now()
+      task.finishedAt = undefined
+      task.error = undefined
+      watchRework(task)
+    }
     if (task.executorName !== undefined) {
       const previous = executorStats.get(task.executorName)
       if (previous !== undefined) {
@@ -235,6 +336,47 @@ export function apply(ctx, rawConfig) {
       }
     }
     return task.childId
+  }
+
+  function watchRework(task) {
+    if (task.reworkTimer !== undefined) return
+    const tick = async () => {
+      task.reworkTimer = undefined
+      if (task.rework !== true) return
+      const started = task.reworkStartedAt ?? Date.now()
+      if (Date.now() - started > REWORK_TIMEOUT_MS) {
+        task.rework = false
+        task.status = 'completed'
+        task.error = 'rework status could not be confirmed before timeout'
+        task.finishedAt = Date.now()
+        pump(task.board)
+        return
+      }
+      let live = false
+      try {
+        live = ctx.get('agents')?.get?.(task.childId) !== undefined
+      } catch {
+        live = false
+      }
+      if (task.rework !== true) return
+      if (!live) {
+        if (Date.now() - started < REWORK_GRACE_MS) {
+          task.reworkTimer = setTimeout(() => void tick(), REWORK_POLL_MS)
+          task.reworkTimer.unref?.()
+          return
+        }
+        task.rework = false
+        task.status = 'completed'
+        task.error = undefined
+        task.finishedAt = Date.now()
+        pump(task.board)
+        return
+      }
+      task.reworkTimer = setTimeout(() => void tick(), REWORK_POLL_MS)
+      task.reworkTimer.unref?.()
+    }
+    task.reworkTimer = setTimeout(() => void tick(), 250)
+    task.reworkTimer.unref?.()
   }
 
   function measureAgent(agent) {
@@ -430,6 +572,21 @@ export function apply(ctx, rawConfig) {
     task.structured = result.structured
     task.diagnostic = result.diagnostic
     if (task.status === 'failed' && task.diagnostic !== undefined) task.error = task.diagnostic
+    if (task.status === 'failed' && (task.error === undefined || task.error === '')) {
+      task.error =
+        result.stopReason === 'max-tokens'
+          ? 'executor hit its output token limit before producing a closing report; narrow the task or require file writes instead of pasting artifacts'
+          : `executor stopped with ${String(result.stopReason)} before producing a report`
+    }
+    if (
+      task.status === 'completed' &&
+      (task.resultText === undefined || task.resultText.trim() === '') &&
+      result.structured === undefined
+    ) {
+      task.status = 'failed'
+      task.error =
+        'executor completed without a closing report; inspect the child session or send a follow-up asking for a short report'
+    }
     task.finishedAt = Date.now()
     finishWaiters(task)
     pump(task.board)
@@ -705,6 +862,8 @@ export function apply(ctx, rawConfig) {
       '- You own this assignment end to end. Do not ask the lead questions; make reasonable assumptions and state them.',
       '- Read before editing. Keep changes scoped to the assignment and never revert unrelated work.',
       '- Run the relevant checks or tests. If a check cannot run, say so and explain why.',
+      '- Write large artifacts (SVG, HTML, generated code) to files with tools; never paste a whole artifact into your final response.',
+      '- Your final response is a short report. If a tool or check fails, report the failure instead of regenerating the artifact in text.',
       '- You may delegate only if the assignment explicitly asks for it; otherwise do the work yourself.',
       '',
       '## Required final report',
@@ -1248,7 +1407,7 @@ export function apply(ctx, rawConfig) {
     let size = 0
     for await (const chunk of req) {
       size += chunk.length
-      if (size > 64 * 1024) throw new Error('request body too large')
+      if (size > 2 * 1024 * 1024) throw new Error('request body too large')
       chunks.push(chunk)
     }
     if (size === 0) return {}
@@ -1278,6 +1437,8 @@ export function apply(ctx, rawConfig) {
       error: task.error ?? null,
       stopReason: task.stopReason ?? null,
       followups: task.followups.length,
+      rework: task.rework === true,
+      reworkStartedAt: task.reworkStartedAt ?? null,
       contextPercent: task.stats?.percent ?? null,
       contextTokens: task.stats?.tokens ?? null,
       contextWindow: task.stats?.window ?? null,
@@ -1487,6 +1648,79 @@ export function apply(ctx, rawConfig) {
       writeRoleState(roleState)
       appendRoleAudit(before, roleState, 'http', logger)
       return sendJson(res, 200, { ok: true, lead: roleState.lead })
+    }
+
+    if (req.method === 'GET' && url.pathname === '/conductor/export') {
+      const sessions = [...boards.values()].map((board) => ({
+        session: board.parent.id,
+        title: sessionTitleOf(board.parent.id),
+        tasks: boardTasks(board).map((task) => ({
+          ...serializeTask(task),
+          result: task.resultText ?? null,
+          followupsList: task.followups,
+          stats: task.stats ?? null,
+          compactionPercent: task.compactionPercent ?? null,
+        })),
+      }))
+      return sendJson(res, 200, {
+        version: 1,
+        exportedAt: Date.now(),
+        sessions,
+        executorStats: Object.fromEntries(executorStats),
+      })
+    }
+
+    if (req.method === 'POST' && url.pathname === '/conductor/import') {
+      let body
+      try {
+        body = await readJson(req)
+      } catch (error) {
+        return sendJson(res, 400, { error: messageOf(error) })
+      }
+      const agents = ctx.get('agents')
+      if (agents === undefined) {
+        return sendJson(res, 503, { error: 'agent registry is unavailable' })
+      }
+      const restored = []
+      const skipped = []
+      const entries = Array.isArray(body.sessions) ? body.sessions : []
+      for (const entry of entries) {
+        const parent =
+          entry !== null && typeof entry.session === 'string' ? agents.get(entry.session) : undefined
+        if (parent === undefined) {
+          skipped.push({ session: entry?.session ?? null, reason: 'session-not-live' })
+          continue
+        }
+        const board = boardFor(parent)
+        const tasks = Array.isArray(entry.tasks) ? entry.tasks : []
+        for (let index = 0; index < tasks.length; index += 1) {
+          const snapshot = tasks[index]
+          if (
+            snapshot === null ||
+            typeof snapshot !== 'object' ||
+            typeof snapshot.id !== 'string'
+          ) {
+            skipped.push({ session: parent.id, reason: 'invalid-task' })
+            continue
+          }
+          if (!TERMINAL.has(snapshot.status)) {
+            skipped.push({ session: parent.id, task: snapshot.id, reason: 'not-terminal' })
+            continue
+          }
+          if (board.tasks.has(snapshot.id)) {
+            skipped.push({ session: parent.id, task: snapshot.id, reason: 'already-present' })
+            continue
+          }
+          const task = restoreTask(board, snapshot, index)
+          restored.push({ session: parent.id, task: task.id })
+        }
+      }
+      if (body.executorStats !== null && typeof body.executorStats === 'object') {
+        for (const [id, stat] of Object.entries(body.executorStats)) {
+          if (stat !== null && typeof stat === 'object') executorStats.set(id, stat)
+        }
+      }
+      return sendJson(res, 200, { ok: true, restored, skipped })
     }
 
     if (req.method === 'GET' && url.pathname === '/conductor/boards') {

@@ -52,6 +52,8 @@ the **user** — not the model — decide which model each role uses.
 - Executor reports are fact-only: no whole files, full diffs, or generated artifacts; no
   recommendations or next-step suggestions. The lead makes decisions; reports keep the key facts
   and may close with a concise conclusion.
+- Publisher task guidance prefers file paths and a short `context`; long documents and code belong
+  in files the executor can read.
 - Cancel, follow up, and inspect full reports from the UI or from the model's tools.
 - No build step, no npm runtime dependencies; the UI uses only the browser React module table.
 

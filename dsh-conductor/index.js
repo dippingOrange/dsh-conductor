@@ -965,7 +965,7 @@ export function apply(ctx, rawConfig) {
   registerTool({
     name: 'dispatch_tasks',
     description:
-      'Start one or more background execution tasks on executor models and return their task ids immediately. Each task is a self-contained child agent with the same tools and workspace as you, so it can read, edit, and run code. Use this to keep decomposition, architecture, and review here while routing implementation to executor roles. The user owns the role→model mapping: every task must name an `executor` role from `list_executors`. Do not invent provider/model routes or use `inherit` unless the user explicitly enabled ad-hoc routes. Start independent tasks in ONE call, then collect them with `wait_tasks` (or pass `wait_seconds` here to block for the first results). A model-facing completion notice is delivered to this session when each child settles; if you return to the user before a task finishes, do not claim it is done, and relay that notice when it arrives. Results remain available for the rest of this session through `wait_tasks` and `task_result`.',
+      'Start one or more background execution tasks on executor models and return their task ids immediately. Each task is a self-contained child agent with the same tools and workspace as you, so it can read, edit, and run code. Use this to keep decomposition, architecture, and review here while routing implementation to executor roles. The user owns the role→model mapping: every task must name an `executor` role from `list_executors`. Do not invent provider/model routes or use `inherit` unless the user explicitly enabled ad-hoc routes. Prefer `files` paths and a short `context`; long documents and code belong in files the executor can read, not pasted into `context`. Start independent tasks in ONE call, then collect them with `wait_tasks` (or pass `wait_seconds` here to block for the first results). A model-facing completion notice is delivered to this session when each child settles; if you return to the user before a task finishes, do not claim it is done, and relay that notice when it arrives. Results remain available for the rest of this session through `wait_tasks` and `task_result`.',
     parameters: {
       type: 'object',
       properties: {
@@ -984,7 +984,7 @@ export function apply(ctx, rawConfig) {
               task: {
                 type: 'string',
                 description:
-                  'Complete, standalone assignment. Name the relevant paths, the current behavior, and what to build; the executor cannot see this conversation.',
+                  'Complete, standalone assignment. Name the relevant paths, the current behavior, and what to build; the executor cannot see this conversation. Prefer file paths over pasted code or long documents.',
               },
               acceptance: {
                 type: 'array',
@@ -993,7 +993,8 @@ export function apply(ctx, rawConfig) {
               },
               context: {
                 type: 'string',
-                description: 'Background the executor needs to start correctly.',
+                description:
+                  'Short task-specific context. Prefer file paths and the files list; do not paste large documents or code. Put durable detail in a file the executor can read.',
               },
               constraints: {
                 type: 'array',
@@ -1869,7 +1870,7 @@ function installGuide(ctx, logger) {
     const dispose = systemPrompt.section({
       name: 'tool:conductor',
       order: order + 1,
-      text: 'Conductor is available. For substantial implementation work, prefer routing it to executor models with `dispatch_tasks` instead of writing it all in this conversation: you keep decomposition, review, and integration. Assign each task to a user-configured executor role (`executor` from `list_executors`); the user owns the role-to-model mapping, so never invent provider/model routes unless the user enabled ad-hoc routes. Give every task a standalone role, context, acceptance criteria, and return format; send independent tasks together, then `wait_tasks`. A background subagent completion notice is delivered to this session when each child settles; if you reply to the user before a task finishes, do not claim it is done, and when the notice arrives relay the result to the user or call `wait_tasks`. Review each report against its criteria and use `task_followup` for corrections.',
+      text: 'Conductor is available. For substantial implementation work, prefer routing it to executor models with `dispatch_tasks` instead of writing it all in this conversation: you keep decomposition, review, and integration. Assign each task to a user-configured executor role (`executor` from `list_executors`); the user owns the role-to-model mapping, so never invent provider/model routes unless the user enabled ad-hoc routes. Give every task a standalone role, context, acceptance criteria, and return format; send independent tasks together, then `wait_tasks`. When a task needs repository detail, pass file paths in `files` and a short `context` summary; do not paste large documents or code into `context` — put durable detail in a file the executor can read. A background subagent completion notice is delivered to this session when each child settles; if you reply to the user before a task finishes, do not claim it is done, and when the notice arrives relay the result to the user or call `wait_tasks`. Review each report against its criteria and use `task_followup` for corrections.',
     })
     if (typeof dispose === 'function') ctx.effect(() => dispose)
   } catch (error) {

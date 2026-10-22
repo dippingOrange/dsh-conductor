@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.12] - 2026-10-22
+
+### Changed
+
+- Publisher task guidance now prefers file paths over large pasted context: pass repository detail
+  through `files` and a short `context` summary, and put durable detail in a file the executor can
+  read. The `context` schema, `dispatch_tasks` description, and system prompt say this explicitly.
+
 ## [1.0.11] - 2026-10-22
 
 ### Fixed

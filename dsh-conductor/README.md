@@ -108,6 +108,17 @@ background subagent 完成通知，即使发布者已经先回复了用户。发
 
 > 这条通知依赖 DSH 的 session 持久化；`task_followup` 的完成通知走同一条通道。
 
+### 任务描述中的 context
+
+发布者写任务时：
+
+- 优先把仓库细节放进 `files`，用路径引用
+- `context` 只写短摘要（背景、当前行为、限制）
+- 不要把大段代码、文档、日志粘进 `context`
+- 需要长期保留的细节写进文件，让执行者自己读
+
+系统提示、`dispatch_tasks` 描述和 `context` 参数 schema 都会这样引导。
+
 ## 可视化任务板
 
 另装了一个独立的 Web UI bundle `@dippingorange/dsh-conductor-ui`，提供两个入口：

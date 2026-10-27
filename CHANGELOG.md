@@ -3,6 +3,23 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - 2026-10-27
+
+### Changed
+
+- Conductor is now session-scoped through a `conductor` agent preset. The Host half owns the task
+  board, roles, HTTP API, and lifecycle; the new `@dippingorange/dsh-conductor/preset` plugin
+  registers the tools and prompt section only inside that preset.
+- `ptc` keeps its native `subagent` / `subagent_fork` tools; the global preset override that disabled
+  them is removed. Sessions that need Conductor choose the `conductor` preset.
+- Task cards are capped in height and scroll internally; running task duration is computed from the
+  device clock and refreshed every second.
+
+### Breaking
+
+- Existing `ptc` sessions keep their old revision and no longer receive Conductor tools after the
+  plugin reload. New work that needs Conductor must select the `conductor` preset.
+
 ## [1.0.13] - 2026-10-22
 
 ### Changed

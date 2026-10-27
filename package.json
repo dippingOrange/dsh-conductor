@@ -1,11 +1,11 @@
 {
   "name": "dsh-conductor-monorepo",
-  "version": "1.0.13",
+  "version": "2.0.0",
   "private": true,
   "description": "Multi-model task dispatch and Web task board for DeepSeek Harness.",
   "license": "MIT",
   "scripts": {
-    "check": "node --check dsh-conductor/index.js && node --check dsh-conductor-ui/client.js && node --check dsh-conductor-ui/index.js",
+    "check": "node --check dsh-conductor/index.js && node --check dsh-conductor/preset.js && node --check dsh-conductor-ui/client.js && node --check dsh-conductor-ui/index.js",
     "test": "node dsh-conductor/test/smoke.mjs"
   }
 }

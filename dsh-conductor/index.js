@@ -64,6 +64,7 @@ export function apply(ctx, rawConfig) {
   }
   const disposers = []
   const logger = ctx.logger
+  const toolDefinitions = []
   let roleState = readRoleState(config, logger)
 
   const llm = () => ctx.get('llm')
@@ -133,9 +134,14 @@ export function apply(ctx, rawConfig) {
 
   // -------------------------------------------------------------------- tools
 
-  function registerTool(definition) {
-    const dispose = ctx.effect(() => ctx.tools.register(definition))
-    disposers.push(dispose)
+  function registerTools(targetCtx) {
+    for (const definition of toolDefinitions) {
+      targetCtx.effect(() => targetCtx.tools.register(definition))
+    }
+  }
+
+  function registerPrompt(targetCtx) {
+    installGuide(targetCtx, logger)
   }
 
   // --------------------------------------------------------------- task cycle
@@ -962,7 +968,7 @@ export function apply(ctx, rawConfig) {
 
   // -------------------------------------------------------------------- tools
 
-  registerTool({
+  toolDefinitions.push({
     name: 'dispatch_tasks',
     description:
       'Start one or more background execution tasks on executor models and return their task ids immediately. Each task is a self-contained child agent with the same tools and workspace as you, so it can read, edit, and run code. Use this to keep decomposition, architecture, and review here while routing implementation to executor roles. The user owns the role→model mapping: every task must name an `executor` role from `list_executors`. Do not invent provider/model routes or use `inherit` unless the user explicitly enabled ad-hoc routes. Never call native subagent tools (`subagent` / `subagent_fork`); all delegation must go through this tool with a configured executor role. Prefer `files` paths and a short `context`; long documents and code belong in files the executor can read, not pasted into `context`. Start independent tasks in ONE call, then collect them with `wait_tasks` (or pass `wait_seconds` here to block for the first results). A model-facing completion notice is delivered to this session when each child settles; if you return to the user before a task finishes, do not claim it is done, and relay that notice when it arrives. Results remain available for the rest of this session through `wait_tasks` and `task_result`.',
@@ -1105,7 +1111,7 @@ export function apply(ctx, rawConfig) {
     },
   })
 
-  registerTool({
+  toolDefinitions.push({
     name: 'wait_tasks',
     description:
       'Wait for execution tasks and return their reports. Omit `task_ids` to wait for every task started in this session. Returns each task status, route, and final report; a timeout returns current statuses without failing. Use `timeout_seconds: 0` for a pure status check.',
@@ -1176,7 +1182,7 @@ export function apply(ctx, rawConfig) {
     },
   })
 
-  registerTool({
+  toolDefinitions.push({
     name: 'task_result',
     description:
       'Return the complete final report of one finished task, including its structured result if it produced one. Use this when a report was truncated in wait_tasks.',
@@ -1223,7 +1229,7 @@ export function apply(ctx, rawConfig) {
     },
   })
 
-  registerTool({
+  toolDefinitions.push({
     name: 'task_followup',
     description:
       'Send a follow-up instruction to a task’s executor. The executor keeps its earlier conversation, so this is the cheapest way to request corrections, extra verification, or clarification. A finished executor cold-resumes and its closing message is delivered back to this session as a background subagent notice for the returned child id; a still-running executor receives the message at its next step and its final report updates the task.',
@@ -1269,7 +1275,7 @@ export function apply(ctx, rawConfig) {
     },
   })
 
-  registerTool({
+  toolDefinitions.push({
     name: 'cancel_task',
     description:
       'Cancel one task and release its execution slot. Use when the assignment is no longer needed or is clearly going the wrong way. Returns the previous status.',
@@ -1297,7 +1303,7 @@ export function apply(ctx, rawConfig) {
     },
   })
 
-  registerTool({
+  toolDefinitions.push({
     name: 'list_executors',
     description:
       'List the user-configured executor roles and every live provider/model route. Call this before dispatching; pass a role id as `executor`. The role→model mapping is controlled by the user, not by you.',
@@ -1828,7 +1834,7 @@ export function apply(ctx, rawConfig) {
 
   // ----------------------------------------------------------- system prompt
 
-  installGuide(ctx, logger)
+  ctx.provide('conductor', { registerTools, registerPrompt })
 
   // ------------------------------------------------------------------ teardown
 
@@ -1856,8 +1862,8 @@ export function apply(ctx, rawConfig) {
 
 // --------------------------------------------------------------------- helpers
 
-function installGuide(ctx, logger) {
-  const systemPrompt = ctx.get('systemPrompt')
+function installGuide(targetCtx, logger) {
+  const systemPrompt = targetCtx.get('systemPrompt')
   if (systemPrompt === undefined) return
   let order
   try {
@@ -1872,7 +1878,7 @@ function installGuide(ctx, logger) {
       order: order + 1,
       text: 'Conductor is available. For substantial implementation work, prefer routing it to executor models with `dispatch_tasks` instead of writing it all in this conversation: you keep decomposition, review, and integration. Assign each task to a user-configured executor role (`executor` from `list_executors`); the user owns the role-to-model mapping, so never invent provider/model routes unless the user enabled ad-hoc routes. Give every task a standalone role, context, acceptance criteria, and return format; send independent tasks together, then `wait_tasks`. When a task needs repository detail, pass file paths in `files` and a short `context` summary; do not paste large documents or code into `context` — put durable detail in a file the executor can read. Never call native subagent tools (`subagent` / `subagent_fork`); all delegation must go through `dispatch_tasks` with a configured executor role, because native subagents bypass the task board and the role policy. A background subagent completion notice is delivered to this session when each child settles; if you reply to the user before a task finishes, do not claim it is done, and when the notice arrives relay the result to the user or call `wait_tasks`. Review each report against its criteria and use `task_followup` for corrections.',
     })
-    if (typeof dispose === 'function') ctx.effect(() => dispose)
+    if (typeof dispose === 'function') targetCtx.effect(() => dispose)
   } catch (error) {
     logger?.warn?.(`conductor: could not add the system prompt section: ${String(error)}`)
   }

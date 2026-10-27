@@ -48,6 +48,10 @@ const systemPrompt = {
 const ctx = {
   logger: { info() {}, warn() {} },
   webServer: { register: () => () => {} },
+  provided: {},
+  provide(name, service) {
+    this.provided[name] = service
+  },
   inject(_deps, callback) {
     return callback(ctx)
   },
@@ -98,6 +102,10 @@ apply(ctx, {
   maxConcurrent: 2,
   executors: { coder: { provider: 'opencode', model: 'claude-haiku-4-5', description: 'cheap' } },
 })
+
+if (ctx.provided.conductor === undefined) throw new Error('conductor service is not provided')
+ctx.provided.conductor.registerTools(ctx)
+ctx.provided.conductor.registerPrompt(ctx)
 
 const exec = { agent: { id: 'parent-1' }, signal: new AbortController().signal }
 

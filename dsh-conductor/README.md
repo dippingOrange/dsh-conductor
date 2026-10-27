@@ -119,11 +119,16 @@ background subagent 完成通知，即使发布者已经先回复了用户。发
 
 系统提示、`dispatch_tasks` 描述和 `context` 参数 schema 都会这样引导。
 
-### 原生子代理已禁用
+### 会话级 preset
 
-`ptc` 预设中已禁用 `tool-subagent` 和 `tool-subagent-fork`，发布者只能通过
-`dispatch_tasks` 委派；`list_agents` 保留用于诊断。Conductor 自身仍使用 subagent 服务，
-`maxActiveSubagents: 5` 不变。
+Conductor 的模型工具和提示只挂在 `conductor` 预设下：
+
+- `ptc`：保留原生 `subagent` / `subagent_fork`
+- `conductor`：只提供 `dispatch_tasks` / `list_executors` 等协作工具，不注册原生 spawn
+- Host 仍提供任务板、角色、HTTP API 和 subagent 服务
+- `list_agents` 保留用于诊断；`maxActiveSubagents: 5` 不变
+
+旧会话会保留启动时的 preset revision；切换会话级能力需要新会话选择 `conductor` preset。
 
 ## 可视化任务板
 

@@ -190,7 +190,8 @@ window.__ModuleLoader__.load({
 .dsh-cb-filter { border:1px solid transparent; background:transparent; color:var(--dsw-alias-label-secondary); border-radius:999px; padding:2px 8px; font-size:11px; cursor:pointer; font:inherit; }
 .dsh-cb-filter:hover { background:var(--dsw-alias-bg-layer-2); }
 .dsh-cb-filter[aria-pressed="true"] { background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-primary); border-color:var(--dsw-alias-border-l1); }
-.dsh-cb-task { border:1px solid var(--dsw-alias-border-l1); border-radius:8px; padding:7px 8px; display:flex; gap:8px; background:var(--dsw-alias-bg-base); }
+.dsh-cb-task { border:1px solid var(--dsw-alias-border-l1); border-radius:8px; padding:7px 8px; display:flex; gap:8px; background:var(--dsw-alias-bg-base); max-height:300px; overflow:auto; box-sizing:border-box; }
+.dsh-cb-main { min-width:0; flex:1 1 auto; }
 .dsh-cb-task:hover { border-color:var(--dsw-alias-border-l2); }
 .dsh-cb-dot { width:7px; height:7px; border-radius:50%; margin-top:5px; flex:none; background:var(--dsw-alias-state-idle-primary); }
 .dsh-cb-dot.running { background:var(--dsw-alias-brand-primary); box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 22%, transparent); animation:dsh-cb-pulse 1.6s ease-in-out infinite; }
@@ -262,7 +263,7 @@ window.__ModuleLoader__.load({
 .dsh-cb-column { background:var(--dsw-alias-bg-layer-1); border:1px solid var(--dsw-alias-border-l1); border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:8px; min-height:140px; }
 .dsh-cb-column-head { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; }
 .dsh-cb-column-count { color:var(--dsw-alias-label-secondary); font-weight:400; margin-left:auto; }
-.dsh-cb-page .dsh-cb-task { display:block; }
+.dsh-cb-page .dsh-cb-task { display:block; max-height:380px; }
 .dsh-cb-page .dsh-cb-followup { margin-left:0; }
 .dsh-cb-page .dsh-cb-role { max-width:none; margin-top:4px; font-weight:600; white-space:normal; }
 .dsh-cb-page .dsh-cb-actions { flex-direction:row; margin-top:6px; flex-wrap:wrap; }
@@ -302,6 +303,23 @@ window.__ModuleLoader__.load({
       const hours = Math.floor(minutes / 60)
       const rest = minutes % 60
       return rest === 0 ? `${hours}h` : `${hours}h${rest}m`
+    }
+
+    function elapsedFor(task, now) {
+      if (task.status === 'running' || task.status === 'starting') {
+        const start = task.startedAt ?? task.createdAt
+        if (typeof start === 'number') return Math.max(0, now - start)
+      }
+      return task.elapsedMs
+    }
+
+    function useNow() {
+      const [now, setNow] = useState(Date.now())
+      useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 1000)
+        return () => clearInterval(timer)
+      }, [])
+      return now
     }
 
     function errorText(value) {
@@ -518,6 +536,7 @@ window.__ModuleLoader__.load({
       const autoCollapsed = useRef(false)
 
       const { board, error, reload } = useBoard(sessionId)
+      const now = useNow()
 
       useEffect(() => {
         if (autoCollapsed.current || board === null) return
@@ -716,7 +735,7 @@ window.__ModuleLoader__.load({
                 { className: `dsh-cb-pill ${statusClass(task.status)}` },
                 tr(`status.${task.status}`),
               ),
-              h('span', { className: 'dsh-cb-elapsed' }, formatDuration(task.elapsedMs)),
+              h('span', { className: 'dsh-cb-elapsed' }, formatDuration(elapsedFor(task, now))),
             ),
             h(
               'div',
@@ -1437,6 +1456,7 @@ window.__ModuleLoader__.load({
       const tr = typeof props.t === 'function' ? props.t : (key) => key
       const compact = props.compact === true
       const { data, error, reload } = useAllBoards()
+      const now = useNow()
       const [sessionFilter, setSessionFilter] = useState(props.focusSession ?? 'all')
       const [view, setView] = useState('tasks')
       const [detail, setDetail] = useState(null)
@@ -1587,7 +1607,7 @@ window.__ModuleLoader__.load({
                 { className: `dsh-cb-pill ${statusClass(task.status)}` },
                 tr(`status.${task.status}`),
               ),
-              h('span', { className: 'dsh-cb-elapsed' }, formatDuration(task.elapsedMs)),
+              h('span', { className: 'dsh-cb-elapsed' }, formatDuration(elapsedFor(task, now))),
             ),
             h('div', { className: 'dsh-cb-role', title: task.role }, task.role),
             h('div', { className: 'dsh-cb-sub', title: task.route }, task.route),

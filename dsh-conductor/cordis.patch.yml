@@ -50,7 +50,9 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: conductor
-        order: 3
+        name: Conductor
+        description: Session-scoped task dispatch with configured executor roles.
+        order: 5
         plugins:
           - id: persona
             name: '@deepseek-ai/dsh-persona'

@@ -3,6 +3,15 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.1] - 2026-10-27
+
+### Fixed
+
+- The `conductor` preset now injects the scoped `tools` and `systemPrompt` services before
+  registering the Conductor tools and prompt section, so its composition is valid and the preset
+  appears in the mode picker.
+- Give the preset a unique order (5) and a display name instead of colliding with Minimal mode.
+
 ## [2.0.0] - 2026-10-27
 
 ### Changed

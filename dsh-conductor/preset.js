@@ -9,7 +9,7 @@
 
 export const name = 'conductor-preset'
 
-export const inject = ['conductor']
+export const inject = ['conductor', 'tools', 'systemPrompt']
 
 export function apply(ctx) {
   const runtime = ctx.conductor

@@ -3,6 +3,19 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-10-28
+
+### Added
+
+- Context checkpoints at 38%: a running executor is asked to write a structured handoff file and
+  stop before the compaction threshold. The task then starts a successor generation with the
+  original assignment plus the handoff, so the old generation is hidden and the card stays single.
+- Actual compaction counting from `compaction/end` events, in addition to percentage and turns.
+- Handoff caps at three successor generations; blocked handoffs are marked on the task.
+- Archive sweep: terminal tasks older than 14 days are exported to
+  `$DSH_HOME/conductor/archive/<session>/<task>.json` and hidden from the board. After another 30
+  days the child transcript directory is removed; the archived report remains.
+
 ## [2.0.1] - 2026-10-27
 
 ### Fixed

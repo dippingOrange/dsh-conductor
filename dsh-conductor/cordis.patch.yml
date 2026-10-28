@@ -21,6 +21,16 @@
         contextWindowMax: 0
         # Abort a compaction attempt that runs longer than this.
         compactionTimeoutMs: 30000
+        # Context percentage that asks the executor to write a handoff file.
+        checkpointPercent: 38
+        # Maximum successor generations for one logical task.
+        handoffMaxGenerations: 3
+        # Poll interval for checkpoint/handoff state.
+        handoffPollMs: 2000
+        # Terminal tasks become read-only archives after this many days.
+        archiveAfterDays: 14
+        # Archived data becomes eligible for deletion after this many days.
+        deleteAfterArchiveDays: 30
         # Optional seed for executor roles. After first run the Web
         # "Executors & publisher" tab owns these and persists them to
         # $DSH_HOME/conductor/roles.json.

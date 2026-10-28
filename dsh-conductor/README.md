@@ -130,6 +130,17 @@ Conductor 的模型工具和提示只挂在 `conductor` 预设下：
 
 旧会话会保留启动时的 preset revision；切换会话级能力需要新会话选择 `conductor` preset。
 
+### Checkpoint、交接与归档
+
+- 运行中任务达到 **38%** 时，插件向执行者发送 checkpoint 指令，要求写入结构化 handoff 文件并停止
+- 执行者 inactive 后，同一个任务启动下一代 child，带着原任务 + handoff 继续
+- 旧 generation 不显示独立卡片，只保留内部历史；最多 3 代
+- 任务终态 **14 天**后导出到 `$DSH_HOME/conductor/archive/` 并从看板隐藏
+- 再过 **30 天**删除 child transcript 目录，归档报告保留
+
+相关配置：`checkpointPercent`、`handoffMaxGenerations`、`handoffPollMs`、
+`archiveAfterDays`、`deleteAfterArchiveDays`。
+
 ## 可视化任务板
 
 另装了一个独立的 Web UI bundle `@dippingorange/dsh-conductor-ui`，提供两个入口：

@@ -60,6 +60,10 @@ the **user** — not the model — decide which model each role uses.
   unchanged.
 - Task cards cap their height and scroll internally; running duration is computed from the local
   device clock and refreshes every second.
+- At 38% context the executor is asked for a structured checkpoint; before 40% the task starts a
+  successor generation with the handoff. Old generations stay under the same card and are hidden.
+- Terminal tasks are archived after 14 days and their child transcript is deleted 30 days later;
+  the archived report remains.
 - Cancel, follow up, and inspect full reports from the UI or from the model's tools.
 - No build step, no npm runtime dependencies; the UI uses only the browser React module table.
 

@@ -14,9 +14,9 @@
  * `task_followup` cold-resumes it when the lead needs another round.
  */
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, sep } from 'node:path'
 
 const DEFAULT_REPORT_FORMAT = `Use Markdown with exactly these sections:
 1. Status — done | partial | blocked
@@ -42,6 +42,11 @@ const DEFAULTS = {
   contextWindowTokens: 128000,
   contextWindowMax: 0,
   compactionTimeoutMs: 30000,
+  checkpointPercent: 38,
+  handoffMaxGenerations: 3,
+  handoffPollMs: 2000,
+  archiveAfterDays: 14,
+  deleteAfterArchiveDays: 30,
   allowAdHocRoutes: false,
 }
 
@@ -156,6 +161,19 @@ export function apply(ctx, rawConfig) {
       role: spec.role,
       summary: spec.summary,
       promptText: spec.promptText,
+      basePromptText: spec.promptText,
+      generation: 0,
+      generations: [],
+      checkpointRequested: false,
+      checkpointAt: undefined,
+      checkpointPercent: undefined,
+      handoffTimer: undefined,
+      handoffInProgress: false,
+      handoffBlocked: false,
+      archived: false,
+      archivedAt: undefined,
+      deleteAt: undefined,
+      transcriptDeleted: false,
       provider: spec.provider,
       model: spec.model,
       reasoningEffort: spec.reasoningEffort,
@@ -208,6 +226,7 @@ export function apply(ctx, rawConfig) {
         tokens: snapshot.contextTokens ?? null,
         window: snapshot.contextWindow ?? null,
         turnsSinceCompact: snapshot.turnsSinceCompact ?? 0,
+        compactions: snapshot.compactions ?? 0,
         lastCompactedAt: snapshot.compactedAt ?? null,
         compacted: snapshot.compacted === true,
         compactionPercent: snapshot.compactionPercent ?? undefined,
@@ -220,6 +239,19 @@ export function apply(ctx, rawConfig) {
       role: snapshot.role ?? 'restored',
       summary: snapshot.summary ?? '',
       promptText: '',
+      basePromptText: '',
+      generation: Number(snapshot.generation) || 0,
+      generations: [],
+      checkpointRequested: false,
+      checkpointAt: undefined,
+      checkpointPercent: undefined,
+      handoffTimer: undefined,
+      handoffInProgress: false,
+      handoffBlocked: false,
+      archived: snapshot.archived === true,
+      archivedAt: snapshot.archivedAt ?? undefined,
+      deleteAt: snapshot.deleteAt ?? undefined,
+      transcriptDeleted: snapshot.transcriptDeleted === true,
       provider: snapshot.provider ?? undefined,
       model: snapshot.model ?? undefined,
       reasoningEffort: undefined,
@@ -294,6 +326,7 @@ export function apply(ctx, rawConfig) {
   async function cancelTask(task) {
     const previous = task.status
     if (TERMINAL.has(previous)) return { previous, cancelled: false }
+    clearHandoffWatch(task)
     if (task.reworkTimer !== undefined) {
       clearTimeout(task.reworkTimer)
       task.reworkTimer = undefined
@@ -310,6 +343,9 @@ export function apply(ctx, rawConfig) {
   }
 
   async function deliverFollowup(task, message, signal) {
+    if (task.archived === true) {
+      throw new Error(`${task.id} is archived; its executor transcript is no longer available for follow-up`)
+    }
     if (task.finalizing !== undefined) await task.finalizing
     if (task.childId === undefined) {
       throw new Error(`${task.id} has not started yet (${task.status})`)
@@ -400,6 +436,7 @@ export function apply(ctx, rawConfig) {
     let window
     let lastCompactionIndex = -1
     let lastCompactedAt = null
+    let compactions = 0
     for (let index = 0; index < events.length; index += 1) {
       const event = events[index]
       if (event.type === 'request/context' && typeof event.data?.contextWindow === 'number') {
@@ -407,6 +444,9 @@ export function apply(ctx, rawConfig) {
       }
       if (event.type === 'assistant/message' && event.data?.usage !== undefined) {
         usage = event.data.usage
+      }
+      if (event.type === 'compaction/end') {
+        compactions += 1
       }
       if (event.type === 'compaction/end' || event.type === 'compaction/summary') {
         lastCompactionIndex = index
@@ -431,6 +471,7 @@ export function apply(ctx, rawConfig) {
       window: contextWindow,
       percent,
       turnsSinceCompact: turns,
+      compactions,
       lastCompactedAt,
     }
   }
@@ -446,6 +487,7 @@ export function apply(ctx, rawConfig) {
       window: stats.window ?? config.contextWindowTokens,
       percent: stats.percent ?? null,
       turnsSinceCompact: stats.turnsSinceCompact ?? 0,
+      compactions: stats.compactions ?? 0,
       compactionPercent: task.compactionPercent ?? config.contextCompactionPercent,
       lastCompactedAt: stats.lastCompactedAt ?? null,
       compacted: stats.compacted === true,
@@ -564,6 +606,7 @@ export function apply(ctx, rawConfig) {
   }
 
   function settle(task, result) {
+    clearHandoffWatch(task)
     if (task.status === 'cancelled') {
       void disposeTask(task)
       return
@@ -603,6 +646,7 @@ export function apply(ctx, rawConfig) {
   }
 
   function fail(task, error) {
+    clearHandoffWatch(task)
     if (task.status === 'cancelled') {
       void disposeTask(task)
       return
@@ -618,6 +662,7 @@ export function apply(ctx, rawConfig) {
 
   async function startTask(task) {
     if (task.status !== 'starting') return
+    const generation = task.generation
     try {
       const provider = ctx.subagents.getProvider(config.provider)
       if (provider === undefined) {
@@ -663,12 +708,18 @@ export function apply(ctx, rawConfig) {
         window: null,
         percent: 0,
         turnsSinceCompact: 0,
+        compactions: 0,
         lastCompactedAt: null,
       })
       activation.result.then(
-        (result) => settle(task, result),
-        (error) => fail(task, error),
+        (result) => {
+          if (task.generation === generation) settle(task, result)
+        },
+        (error) => {
+          if (task.generation === generation) fail(task, error)
+        },
       )
+      startHandoffWatch(task)
     } catch (error) {
       const text = messageOf(error)
       if (text.includes('ACTIVATION_LIMIT_REACHED') && task.board.capacityRetries < 8) {
@@ -685,6 +736,268 @@ export function apply(ctx, rawConfig) {
       }
     } finally {
       pump(task.board)
+    }
+  }
+
+  function clearHandoffWatch(task) {
+    if (task.handoffTimer !== undefined) {
+      clearInterval(task.handoffTimer)
+      task.handoffTimer = undefined
+    }
+  }
+
+  function handoffFilePath(task, generation = task.generation) {
+    return join(
+      conductorHomePath('handoffs', task.board.parent.id),
+      `${task.id}-g${generation}.md`,
+    )
+  }
+
+  function requestCheckpoint(task, stats) {
+    if (task.checkpointRequested || task.status !== 'running' || task.childId === undefined) return
+    const path = handoffFilePath(task)
+    try {
+      mkdirSync(dirname(path), { recursive: true })
+    } catch (error) {
+      logger?.warn?.(`conductor: could not create handoff directory: ${messageOf(error)}`)
+      return
+    }
+    task.checkpointRequested = true
+    task.checkpointAt = Date.now()
+    task.checkpointPercent = stats?.percent ?? null
+    const message = [
+      `Context checkpoint required: this task is at ${stats?.percent ?? '?'}% of the model context.`,
+      `Before doing any more work, write a complete handoff to: ${path}`,
+      '',
+      'The handoff must contain:',
+      '- goal, acceptance criteria, constraints',
+      '- workspace state, files changed, commits',
+      '- verification already run and its results',
+      '- decisions and rejected approaches',
+      '- open issues/blockers',
+      '- exact next actions',
+      '',
+      'Write the file with your file tools, then stop this turn immediately.',
+      'Do not start new implementation work after writing it. Reply with one line confirming the checkpoint.',
+    ].join('\n')
+    ctx.subagents
+      .sendMessage(task.board.parent, task.childId, [{ type: 'text', text: message }], {
+        signal: task.controller.signal,
+      })
+      .catch((error) => {
+        task.checkpointRequested = false
+        task.checkpointAt = undefined
+        logger?.warn?.(`conductor: checkpoint request for ${task.id} failed: ${messageOf(error)}`)
+      })
+  }
+
+  function readHandoff(task) {
+    try {
+      const text = readFileSync(handoffFilePath(task), 'utf8')
+      if (text.trim().length >= 200) return text
+    } catch {
+      // Missing handoff falls back to the last report below.
+    }
+    return null
+  }
+
+  function fallbackHandoff(task) {
+    const parts = [`Task summary: ${task.summary}`]
+    if (task.resultText !== undefined && task.resultText.trim() !== '') {
+      parts.push(`Previous report:\n${task.resultText}`)
+    }
+    parts.push('The previous executor stopped at a context checkpoint without a complete handoff file.')
+    return parts.join('\n\n')
+  }
+
+  function inspectHandoff(task) {
+    if (task.status !== 'running' || task.handoffInProgress === true) {
+      if (!isActive(task)) clearHandoffWatch(task)
+      return
+    }
+    if (task.generation >= config.handoffMaxGenerations) {
+      task.handoffBlocked = true
+      clearHandoffWatch(task)
+      return
+    }
+    let stats
+    try {
+      stats = measureAgent(task.activation?.agent)
+    } catch {
+      stats = null
+    }
+    if (stats !== null) {
+      task.stats = { ...(task.stats ?? {}), ...stats }
+    }
+    if (!task.checkpointRequested) {
+      const percent = stats?.percent
+      const compactions = stats?.compactions ?? 0
+      if (
+        (typeof percent === 'number' && percent >= config.checkpointPercent) ||
+        compactions > 0
+      ) {
+        requestCheckpoint(task, stats)
+      }
+      return
+    }
+    let live = false
+    try {
+      live = ctx.get('agents')?.get?.(task.childId) !== undefined
+    } catch {
+      live = false
+    }
+    if (live) {
+      task.checkpointInactiveAt = undefined
+      return
+    }
+    task.checkpointInactiveAt ??= Date.now()
+    if (Date.now() - task.checkpointInactiveAt < 5000) return
+    clearHandoffWatch(task)
+    const handoff = readHandoff(task) ?? fallbackHandoff(task)
+    void startSuccessor(task, handoff)
+  }
+
+  function startHandoffWatch(task) {
+    if (task.handoffTimer !== undefined) return
+    task.handoffTimer = setInterval(() => inspectHandoff(task), config.handoffPollMs)
+    task.handoffTimer.unref?.()
+  }
+
+  async function startSuccessor(task, handoff) {
+    if (task.handoffInProgress === true) return
+    if (task.status === 'cancelled' || task.status === 'completed' || task.status === 'failed') return
+    if (task.generation >= config.handoffMaxGenerations) {
+      task.handoffBlocked = true
+      return
+    }
+    task.handoffInProgress = true
+    clearHandoffWatch(task)
+    const oldActivation = task.activation
+    task.generations.push({
+      generation: task.generation,
+      childId: task.childId,
+      resultText: task.resultText,
+      stats: task.stats,
+      stopReason: task.stopReason,
+      handoff,
+      finishedAt: Date.now(),
+    })
+    task.generation += 1
+    task.childId = undefined
+    task.activation = undefined
+    task.status = 'starting'
+    task.startedAt = undefined
+    task.finishedAt = undefined
+    task.resultText = undefined
+    task.structured = undefined
+    task.stopReason = undefined
+    task.diagnostic = undefined
+    task.error = undefined
+    task.checkpointRequested = false
+    task.checkpointAt = undefined
+    task.checkpointPercent = undefined
+    task.checkpointInactiveAt = undefined
+    task.disposed = false
+    task.controller = new AbortController()
+    task.promptText = [
+      task.basePromptText,
+      '',
+      `## Handoff from generation ${task.generation - 1}`,
+      handoff,
+      '',
+      '## Continuation rules',
+      'Continue the same assignment from this checkpoint. Re-read the handoff, verify the workspace state, and do not restart completed work. Keep the same acceptance criteria and report format. If the handoff is incomplete, repair it before continuing.',
+    ].join('\n')
+    try {
+      if (oldActivation !== undefined) await oldActivation.dispose()
+    } catch (error) {
+      logger?.warn?.(`conductor: disposing ${task.id} generation ${task.generation - 1} failed: ${messageOf(error)}`)
+    }
+    task.handoffInProgress = false
+    await startTask(task)
+  }
+
+  function archiveTask(task, now = Date.now()) {
+    const directory = conductorHomePath('archive', task.board.parent.id)
+    mkdirSync(directory, { recursive: true })
+    const file = join(directory, `${task.id}.json`)
+    const payload = {
+      version: 1,
+      archivedAt: now,
+      session: task.board.parent.id,
+      task: {
+        ...serializeTask(task),
+        result: task.resultText ?? null,
+        generations: task.generations,
+      },
+    }
+    writeFileSync(file, JSON.stringify(payload, null, 2), 'utf8')
+    task.archived = true
+    task.archivedAt = now
+    task.deleteAt = now + config.deleteAfterArchiveDays * 86400000
+  }
+
+  function deleteTaskTranscript(task) {
+    if (task.transcriptDeleted === true) return
+    const childId = task.childId
+    if (typeof childId !== 'string' || childId === '') {
+      task.transcriptDeleted = true
+      return
+    }
+    try {
+      if (ctx.get('agents')?.get?.(childId) !== undefined) return
+    } catch {
+      // The registry may be unavailable during unload; treat as not live.
+    }
+    const sessionsRoot = join(dirname(conductorHomePath()), 'sessions')
+    if (!existsSync(sessionsRoot)) {
+      task.transcriptDeleted = true
+      return
+    }
+    const targets = []
+    const walk = (directory) => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue
+        const child = join(directory, entry.name)
+        if (entry.name === childId) targets.push(child)
+        else walk(child)
+      }
+    }
+    try {
+      walk(sessionsRoot)
+      for (const target of targets) {
+        if (!target.startsWith(`${sessionsRoot}${sep}`)) continue
+        rmSync(target, { recursive: true, force: true })
+      }
+      task.transcriptDeleted = true
+    } catch (error) {
+      logger?.warn?.(`conductor: deleting transcript for ${task.id} failed: ${messageOf(error)}`)
+    }
+  }
+
+  function archiveOldTasks() {
+    const now = Date.now()
+    const maxAge = config.archiveAfterDays * 86400000
+    for (const board of boards.values()) {
+      for (const task of board.tasks.values()) {
+        if (task.archived === true) {
+          if (
+            task.transcriptDeleted !== true &&
+            typeof task.deleteAt === 'number' &&
+            now >= task.deleteAt
+          ) {
+            deleteTaskTranscript(task)
+          }
+          continue
+        }
+        if (!TERMINAL.has(task.status) || typeof task.finishedAt !== 'number') continue
+        if (now - task.finishedAt < maxAge) continue
+        try {
+          archiveTask(task, now)
+        } catch (error) {
+          logger?.warn?.(`conductor: archiving ${task.id} failed: ${messageOf(error)}`)
+        }
+      }
     }
   }
 
@@ -1454,6 +1767,13 @@ export function apply(ctx, rawConfig) {
       followups: task.followups.length,
       rework: task.rework === true,
       reworkStartedAt: task.reworkStartedAt ?? null,
+      generation: task.generation ?? 0,
+      compactions: task.stats?.compactions ?? 0,
+      handoffBlocked: task.handoffBlocked === true,
+      checkpointRequested: task.checkpointRequested === true,
+      archived: task.archived === true,
+      archivedAt: task.archivedAt ?? null,
+      deleteAt: task.deleteAt ?? null,
       contextPercent: task.stats?.percent ?? null,
       contextTokens: task.stats?.tokens ?? null,
       contextWindow: task.stats?.window ?? null,
@@ -1485,7 +1805,7 @@ export function apply(ctx, rawConfig) {
       updatedAt: Date.now(),
       executorStats: Object.fromEntries(executorStats),
       notifications: compactionNotice,
-      tasks: board === undefined ? [] : boardTasks(board).map(serializeTask),
+      tasks: board === undefined ? [] : boardTasks(board).filter((task) => task.archived !== true).map(serializeTask),
     }
   }
 
@@ -1743,7 +2063,7 @@ export function apply(ctx, rawConfig) {
         .map((board) => ({
           session: board.parent.id,
           title: sessionTitleOf(board.parent.id),
-          tasks: boardTasks(board).map(serializeTask),
+          tasks: boardTasks(board).filter((task) => task.archived !== true).map(serializeTask),
         }))
         .filter((entry) => entry.tasks.length > 0)
         .sort((a, b) => {
@@ -1835,6 +2155,17 @@ export function apply(ctx, rawConfig) {
   // ----------------------------------------------------------- system prompt
 
   ctx.provide('conductor', { registerTools, registerPrompt })
+
+  // ------------------------------------------------------------ lifecycle sweep
+
+  const archiveTimer = setInterval(() => archiveOldTasks(), 15 * 60 * 1000)
+  archiveTimer.unref?.()
+  const archiveInitial = setTimeout(() => archiveOldTasks(), 10 * 1000)
+  archiveInitial.unref?.()
+  ctx.effect(() => () => {
+    clearInterval(archiveTimer)
+    clearTimeout(archiveInitial)
+  })
 
   // ------------------------------------------------------------------ teardown
 
@@ -1951,6 +2282,31 @@ function resolveConfig(raw) {
       1000,
       120000,
     ),
+    checkpointPercent: clampNumber(
+      input.checkpointPercent,
+      DEFAULTS.checkpointPercent,
+      10,
+      95,
+    ),
+    handoffMaxGenerations: clampNumber(
+      input.handoffMaxGenerations,
+      DEFAULTS.handoffMaxGenerations,
+      1,
+      10,
+    ),
+    handoffPollMs: clampNumber(input.handoffPollMs, DEFAULTS.handoffPollMs, 500, 60000),
+    archiveAfterDays: clampNumber(
+      input.archiveAfterDays,
+      DEFAULTS.archiveAfterDays,
+      1,
+      365,
+    ),
+    deleteAfterArchiveDays: clampNumber(
+      input.deleteAfterArchiveDays,
+      DEFAULTS.deleteAfterArchiveDays,
+      0,
+      365,
+    ),
     executors,
     allowAdHocRoutes: input.allowAdHocRoutes === true,
   }
@@ -1962,12 +2318,16 @@ function clampNumber(value, fallback, min, max) {
   return Math.min(max, Math.max(min, number))
 }
 
-function rolesFilePath() {
+function conductorHomePath(...segments) {
   const home =
     typeof process.env.DSH_HOME === 'string' && process.env.DSH_HOME !== ''
       ? process.env.DSH_HOME
       : join(homedir(), '.dsh')
-  return join(home, 'conductor', 'roles.json')
+  return join(home, 'conductor', ...segments)
+}
+
+function rolesFilePath() {
+  return conductorHomePath('roles.json')
 }
 
 function roleAuditFilePath() {

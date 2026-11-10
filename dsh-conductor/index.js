@@ -195,6 +195,11 @@ export function apply(ctx, rawConfig) {
       stopReason: undefined,
       diagnostic: undefined,
       error: undefined,
+      errorCode: undefined,
+      retryable: false,
+      retryHint: undefined,
+      failureRetries: undefined,
+      failureToolCalls: undefined,
       followups: [],
       disposed: false,
       finalizing: undefined,
@@ -273,6 +278,11 @@ export function apply(ctx, rawConfig) {
       stopReason: snapshot.stopReason ?? undefined,
       diagnostic: undefined,
       error: snapshot.error ?? undefined,
+      errorCode: snapshot.errorCode ?? undefined,
+      retryable: snapshot.retryable === true,
+      retryHint: snapshot.retryHint ?? undefined,
+      failureRetries: snapshot.failureRetries ?? undefined,
+      failureToolCalls: snapshot.failureToolCalls ?? undefined,
       followups,
       disposed: true,
       finalizing: undefined,
@@ -364,7 +374,7 @@ export function apply(ctx, rawConfig) {
       task.rework = true
       task.reworkStartedAt = Date.now()
       task.finishedAt = undefined
-      task.error = undefined
+      clearFailure(task)
       watchRework(task)
     }
     if (task.executorName !== undefined) {
@@ -411,7 +421,7 @@ export function apply(ctx, rawConfig) {
         }
         task.rework = false
         task.status = 'completed'
-        task.error = undefined
+        clearFailure(task)
         task.finishedAt = Date.now()
         pump(task.board)
         return
@@ -605,6 +615,127 @@ export function apply(ctx, rawConfig) {
     await disposeTask(task)
   }
 
+  function classifyFailure(message, code) {
+    const text = `${code ?? ''} ${message ?? ''}`.toLowerCase()
+    if (/401|403|unauthorized|authentication|invalid.*authorization|\bauth\b/.test(text)) {
+      return {
+        kind: 'AUTH',
+        retryable: false,
+        hint: '更新该 provider 的 API key 后重新派单；不要原样重试',
+      }
+    }
+    if (/quota|insufficient_quota|billing|余额|额度/.test(text)) {
+      return {
+        kind: 'QUOTA',
+        retryable: false,
+        hint: '订阅/额度不足；换 provider 或充值后再派单',
+      }
+    }
+    if (/429|rate.?limit|too many requests/.test(text)) {
+      return {
+        kind: 'RATE_LIMIT',
+        retryable: true,
+        hint: '稍后重试，或切换到其它 executor 角色',
+      }
+    }
+    if (/5\d\d|server_error|internal server error|\bserver\b/.test(text)) {
+      return {
+        kind: 'SERVER',
+        retryable: true,
+        hint: 'provider 服务端错误；稍后重试，重试前先检查工作区',
+      }
+    }
+    if (/timeout|timed out|etimedout/.test(text)) {
+      return {
+        kind: 'TIMEOUT',
+        retryable: true,
+        hint: '任务超时；可拆小或稍后重试',
+      }
+    }
+    if (/enotfound|econn|network|transport|fetch failed|socket/.test(text)) {
+      return {
+        kind: 'NETWORK',
+        retryable: true,
+        hint: '网络/传输失败；检查连接后重试',
+      }
+    }
+    return {
+      kind: 'UNKNOWN',
+      retryable: false,
+      hint: '查看子会话日志后决定是否重试',
+    }
+  }
+
+  function readChildFailure(task) {
+    let session
+    try {
+      session =
+        task.activation?.agent?.session ?? ctx.get('sessions')?.get?.(task.childId)
+    } catch {
+      session = undefined
+    }
+    if (session === undefined) return null
+    let events
+    try {
+      events = session.snapshotEvents()
+    } catch {
+      return null
+    }
+    let provider
+    let model
+    let failure
+    let retries = 0
+    let toolCalls = 0
+    for (const event of events) {
+      const data = event.data ?? {}
+      if (event.type === 'request/header') {
+        const config = data.header?.config
+        if (config !== undefined) {
+          provider = config.provider ?? provider
+          model = config.model ?? model
+        }
+      }
+      if (event.type === 'request/context') {
+        provider = data.provider ?? provider
+        model = data.model ?? model
+      }
+      if (event.type === 'llm/retry') {
+        retries += 1
+        if (data.failure !== undefined) failure = data.failure
+      }
+      if (event.type === 'assistant/attempt' && Array.isArray(data.stream)) {
+        for (const entry of data.stream) {
+          const reason = entry?.chunk?.reason
+          if (reason?.kind === 'error' && reason.failure !== undefined) {
+            failure = reason.failure
+          }
+        }
+      }
+      if (event.type === 'turn/end' && data.reason?.kind === 'error' && data.reason.error !== undefined) {
+        failure = data.reason.error
+      }
+      if (event.type === 'tool/call') toolCalls += 1
+    }
+    if (failure === undefined) return null
+    const message =
+      typeof failure.message === 'string' ? failure.message.slice(0, 1000) : String(failure)
+    const classification = classifyFailure(message, failure.code)
+    return {
+      provider,
+      model,
+      message,
+      code: failure.code,
+      kind: classification.kind,
+      retryable: classification.retryable,
+      hint:
+        toolCalls > 0 && classification.retryable
+          ? `${classification.hint}；该任务已执行过工具调用，重试前先检查工作区变更`
+          : classification.hint,
+      retries,
+      toolCalls,
+    }
+  }
+
   function settle(task, result) {
     clearHandoffWatch(task)
     if (task.status === 'cancelled') {
@@ -622,12 +753,32 @@ export function apply(ctx, rawConfig) {
     task.resultText = outputText(result)
     task.structured = result.structured
     task.diagnostic = result.diagnostic
-    if (task.status === 'failed' && task.diagnostic !== undefined) task.error = task.diagnostic
-    if (task.status === 'failed' && (task.error === undefined || task.error === '')) {
-      task.error =
-        result.stopReason === 'max-tokens'
-          ? 'executor hit its output token limit before producing a closing report; narrow the task or require file writes instead of pasting artifacts'
-          : `executor stopped with ${String(result.stopReason)} before producing a report`
+    if (task.status === 'failed') {
+      const failure = readChildFailure(task)
+      if (failure !== null) {
+        task.errorCode = failure.kind
+        task.retryable = failure.retryable
+        task.retryHint = failure.hint
+        task.failureRetries = failure.retries
+        task.failureToolCalls = failure.toolCalls
+        task.error = `[${failure.kind}] ${failure.message}`
+      } else if (task.diagnostic !== undefined) {
+        task.errorCode = 'DIAGNOSTIC'
+        task.retryable = false
+        task.retryHint = '查看子会话日志后决定是否重试'
+        task.error = String(task.diagnostic)
+      } else {
+        task.errorCode = result.stopReason === 'max-tokens' ? 'MAX_TOKENS' : 'UNKNOWN'
+        task.retryable = false
+        task.retryHint =
+          result.stopReason === 'max-tokens'
+            ? '拆小任务，或要求执行者用文件工具写产物'
+            : '查看子会话日志后决定是否重试'
+        task.error =
+          result.stopReason === 'max-tokens'
+            ? '[MAX_TOKENS] executor hit its output token limit before producing a closing report'
+            : `[UNKNOWN] executor stopped with ${String(result.stopReason)} before producing a report`
+      }
     }
     if (
       task.status === 'completed' &&
@@ -635,8 +786,10 @@ export function apply(ctx, rawConfig) {
       result.structured === undefined
     ) {
       task.status = 'failed'
-      task.error =
-        'executor completed without a closing report; inspect the child session or send a follow-up asking for a short report'
+      task.errorCode = 'EMPTY_REPORT'
+      task.retryable = false
+      task.retryHint = '检查执行者是否停在计划阶段；可 follow-up 要求短报告'
+      task.error = '[EMPTY_REPORT] executor completed without a closing report'
     }
     task.finishedAt = Date.now()
     finishWaiters(task)
@@ -651,8 +804,13 @@ export function apply(ctx, rawConfig) {
       void disposeTask(task)
       return
     }
+    const text = messageOf(error)
+    const classification = classifyFailure(text, error?.code)
     task.status = task.cancelRequested ? 'cancelled' : 'failed'
-    task.error = messageOf(error)
+    task.errorCode = classification.kind
+    task.retryable = classification.retryable && text.includes('ACTIVATION_LIMIT_REACHED') === false
+    task.retryHint = classification.hint
+    task.error = `[${classification.kind}] ${text}`
     task.finishedAt = Date.now()
     finishWaiters(task)
     pump(task.board)
@@ -737,6 +895,15 @@ export function apply(ctx, rawConfig) {
     } finally {
       pump(task.board)
     }
+  }
+
+  function clearFailure(task) {
+    task.error = undefined
+    task.errorCode = undefined
+    task.retryable = false
+    task.retryHint = undefined
+    task.failureRetries = undefined
+    task.failureToolCalls = undefined
   }
 
   function clearHandoffWatch(task) {
@@ -892,7 +1059,7 @@ export function apply(ctx, rawConfig) {
     task.structured = undefined
     task.stopReason = undefined
     task.diagnostic = undefined
-    task.error = undefined
+    clearFailure(task)
     task.checkpointRequested = false
     task.checkpointAt = undefined
     task.checkpointPercent = undefined
@@ -1763,6 +1930,11 @@ export function apply(ctx, rawConfig) {
       preview: task.resultText === undefined ? null : task.resultText.slice(0, 400),
       resultChars: task.resultText?.length ?? 0,
       error: task.error ?? null,
+      errorCode: task.errorCode ?? null,
+      retryable: task.retryable === true,
+      retryHint: task.retryHint ?? null,
+      failureRetries: task.failureRetries ?? null,
+      failureToolCalls: task.failureToolCalls ?? null,
       stopReason: task.stopReason ?? null,
       followups: task.followups.length,
       rework: task.rework === true,

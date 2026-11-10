@@ -62,6 +62,8 @@ window.__ModuleLoader__.load({
       'label.failed': '失败',
       'label.followups': '追加指令',
       'label.rework': '返工中',
+      'error.retryable': '可重试',
+      'error.nonRetryable': '不可重试',
       'filter.all': '全部',
       'filter.active': '进行中',
       'filter.done': '已完成',
@@ -140,6 +142,8 @@ window.__ModuleLoader__.load({
       'label.failed': 'failed',
       'label.followups': 'follow-ups',
       'label.rework': 'reworking',
+      'error.retryable': 'retryable',
+      'error.nonRetryable': 'do not retry',
       'filter.all': 'All',
       'filter.active': 'Active',
       'filter.done': 'Done',
@@ -746,6 +750,20 @@ window.__ModuleLoader__.load({
             ),
             preview === null ? null : h('div', { className: 'dsh-cb-preview' }, preview),
             task.error ? h('div', { className: 'dsh-cb-error' }, task.error) : null,
+            task.errorCode
+              ? h(
+                  'div',
+                  { className: 'dsh-cb-sub' },
+                  `${task.errorCode} · ${
+                    task.retryable ? tr('error.retryable') : tr('error.nonRetryable')
+                  }${
+                    typeof task.failureRetries === 'number' && task.failureRetries > 0
+                      ? ` · retries ${task.failureRetries}`
+                      : ''
+                  }`,
+                )
+              : null,
+            task.retryHint ? h('div', { className: 'dsh-cb-sub' }, task.retryHint) : null,
             renderFollowup(task),
           ),
           h(
@@ -1634,6 +1652,20 @@ window.__ModuleLoader__.load({
               : null,
             preview === null ? null : h('div', { className: 'dsh-cb-preview' }, preview),
             task.error ? h('div', { className: 'dsh-cb-error' }, task.error) : null,
+            task.errorCode
+              ? h(
+                  'div',
+                  { className: 'dsh-cb-sub' },
+                  `${task.errorCode} · ${
+                    task.retryable ? tr('error.retryable') : tr('error.nonRetryable')
+                  }${
+                    typeof task.failureRetries === 'number' && task.failureRetries > 0
+                      ? ` · retries ${task.failureRetries}`
+                      : ''
+                  }`,
+                )
+              : null,
+            task.retryHint ? h('div', { className: 'dsh-cb-sub' }, task.retryHint) : null,
             followup !== null && followup.key === key ? followupEditor(task) : null,
           ),
           h(

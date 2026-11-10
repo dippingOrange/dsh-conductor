@@ -49,6 +49,9 @@ the **user** — not the model — decide which model each role uses.
 - Board snapshot/restore: `GET /conductor/export` and `POST /conductor/import` preserve terminal
   tasks and reports across a plugin reload.
 - Executor failures such as `max-tokens` or an empty closing report are surfaced as task errors.
+- Provider failures now show the original child error, an `AUTH`/`QUOTA`/`RATE_LIMIT`/`SERVER`/
+  `TIMEOUT`/`NETWORK` code, retryability, retry count, and whether tools already ran. The plugin does
+  not auto-retry; it tells the publisher what is safe to do.
 - Executor reports are fact-only: no whole files, full diffs, or generated artifacts; no
   recommendations or next-step suggestions. The lead makes decisions; reports keep the key facts
   and may close with a concise conclusion.

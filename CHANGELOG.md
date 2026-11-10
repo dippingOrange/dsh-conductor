@@ -3,6 +3,17 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] - 2026-11-10
+
+### Added
+
+- Task failures now read the child session's final `turn/end` / `assistant/attempt` error and expose
+  `errorCode`, `retryable`, `retryHint`, retry count, and tool-call count on the board.
+- Classifies `AUTH` (401/403), `QUOTA`, `RATE_LIMIT` (429), `SERVER` (5xx), `TIMEOUT`, `NETWORK`, and
+  `UNKNOWN`; the task card shows the code, retryability, and the original provider message.
+- No automatic retry: auth/quota are non-retryable, transient errors are marked retryable, and if
+  the child already executed tools the hint says to inspect workspace changes first.
+
 ## [2.1.0] - 2026-10-28
 
 ### Added

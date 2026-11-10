@@ -1,0 +1,223 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1320" viewBox="0 0 1800 1320">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1D4ED8"/>
+    </marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#B45309"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#DC2626"/>
+    </marker>
+    <style>
+      .title { font: 700 30px "Microsoft YaHei", "Segoe UI", sans-serif; fill: #0F172A; }
+      .subtitle { font: 16px "Microsoft YaHei", "Segoe UI", sans-serif; fill: #475569; }
+      .boxtitle { font: 700 18px "Microsoft YaHei", "Segoe UI", sans-serif; fill: #0F172A; }
+      .sectiontitle { font: 700 15px "Microsoft YaHei", "Segoe UI", sans-serif; fill: #334155; }
+      .label { font: 13px "Microsoft YaHei", "Segoe UI", sans-serif; fill: #475569; }
+      .small { font: 12px "Microsoft YaHei", "Segoe UI", sans-serif; fill: #64748B; }
+      .mono { font: 12px Consolas, "Cascadia Mono", monospace; fill: #334155; }
+      .white { fill: #FFFFFF; }
+    </style>
+  </defs>
+
+  <rect width="1800" height="1320" fill="#F8FAFC"/>
+
+  <!-- header -->
+  <text x="50" y="52" class="title">Conductor 当前 Agent 层模型（v2.1.0）</text>
+  <text x="50" y="82" class="subtitle">发布者中心的 Supervisor / Worker 编排：一个发布者拆单，多个隔离的执行者执行，发布者验收；不是 peer-to-peer 协作。</text>
+
+  <!-- legend -->
+  <line x1="1290" y1="50" x2="1335" y2="50" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="1345" y="55" class="small">已实现的数据/控制流</text>
+  <line x1="1290" y1="78" x2="1335" y2="78" stroke="#94A3B8" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="1345" y="83" class="small">未实现 / 可选能力</text>
+
+  <!-- row 1: user, lead, preset, ptc -->
+  <rect x="50" y="120" width="260" height="160" rx="12" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="72" y="150" class="boxtitle">用户 / Web UI</text>
+  <text x="72" y="180" class="label">提出目标</text>
+  <text x="72" y="204" class="label">查看任务板</text>
+  <text x="72" y="228" class="label">验收最终结果</text>
+  <text x="72" y="258" class="small">不参与 agent 间调度</text>
+
+  <rect x="350" y="120" width="430" height="170" rx="12" fill="#EFF6FF" stroke="#1D4ED8"/>
+  <text x="372" y="150" class="boxtitle">发布者（Lead）</text>
+  <text x="372" y="174" class="label">旗舰模型，例如 opencode dsv4.1f</text>
+  <text x="372" y="202" class="label">• 拆解任务，选择执行者角色</text>
+  <text x="372" y="226" class="label">• 等待/读取报告，做验收</text>
+  <text x="372" y="250" class="label">• 回复用户，做最终决定</text>
+  <text x="372" y="275" class="small">当前唯一的协调者和决策者</text>
+
+  <rect x="830" y="120" width="430" height="170" rx="12" fill="#F5F3FF" stroke="#7C3AED"/>
+  <text x="852" y="150" class="boxtitle">conductor preset（会话级）</text>
+  <text x="852" y="174" class="label">只在该会话注册工具和提示</text>
+  <text x="852" y="202" class="mono">dispatch_tasks  wait_tasks  task_result</text>
+  <text x="852" y="226" class="mono">task_followup  cancel_task  list_executors</text>
+  <text x="852" y="258" class="small">Host 服务通过它把工具挂到当前 Agent 作用域</text>
+
+  <rect x="1300" y="120" width="450" height="170" rx="12" fill="#F1F5F9" stroke="#94A3B8" stroke-dasharray="7 5"/>
+  <text x="1322" y="150" class="boxtitle">其他会话 / ptc preset</text>
+  <text x="1322" y="180" class="label">保留原生 subagent / subagent_fork</text>
+  <text x="1322" y="204" class="label">不加载 Conductor 工具和提示</text>
+  <text x="1322" y="236" class="small">同一 profile，按会话选择 preset</text>
+
+  <!-- arrows row 1 -->
+  <line x1="310" y1="200" x2="348" y2="200" stroke="#475569" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="302" y="190" class="small">对话</text>
+  <line x1="780" y1="205" x2="828" y2="205" stroke="#1D4ED8" stroke-width="2" marker-end="url(#arrowBlue)"/>
+  <text x="770" y="195" class="small">tool call</text>
+  <line x1="1045" y1="290" x2="1045" y2="338" stroke="#1D4ED8" stroke-width="2" marker-end="url(#arrowBlue)"/>
+  <text x="1055" y="320" class="small">Host 注入服务</text>
+
+  <!-- Host service -->
+  <rect x="50" y="350" width="980" height="300" rx="14" fill="#FFFFFF" stroke="#0E7490" stroke-width="2"/>
+  <text x="72" y="382" class="boxtitle">Conductor Host 插件（全局单例服务）</text>
+  <text x="72" y="406" class="label">不注册模型工具；负责角色、任务板、任务生命周期、HTTP/UI、归档。</text>
+
+  <rect x="75" y="430" width="285" height="185" rx="10" fill="#F0FDFA" stroke="#99F6E4"/>
+  <text x="92" y="458" class="sectiontitle">角色注册表</text>
+  <text x="92" y="484" class="mono">roles.json</text>
+  <text x="92" y="508" class="label">role → provider/model</text>
+  <text x="92" y="532" class="label">lead + executor 路由</text>
+  <text x="92" y="556" class="label">角色修改审计</text>
+  <text x="92" y="584" class="small">执行者不能自行改路由</text>
+
+  <rect x="385" y="430" width="285" height="185" rx="10" fill="#F0FDFA" stroke="#99F6E4"/>
+  <text x="402" y="458" class="sectiontitle">任务板（按 session 隔离）</text>
+  <text x="402" y="484" class="label">状态 / 报告 / 耗时</text>
+  <text x="402" y="508" class="label">上下文百分比 / 压缩次数</text>
+  <text x="402" y="532" class="label">只显示最新 generation</text>
+  <text x="402" y="556" class="label">归档后隐藏</text>
+  <text x="402" y="584" class="small">监控与展示，不是共享工作区</text>
+
+  <rect x="695" y="430" width="310" height="185" rx="10" fill="#FFFBEB" stroke="#FDE68A"/>
+  <text x="712" y="458" class="sectiontitle">任务生命周期</text>
+  <text x="712" y="484" class="label">queued → starting → running</text>
+  <text x="712" y="508" class="label">completed / failed / cancelled</text>
+  <text x="712" y="532" class="label">38% checkpoint → handoff</text>
+  <text x="712" y="556" class="label">14 天归档 / 30 天后删 transcript</text>
+  <text x="712" y="584" class="small">发布者触发、Host 监控、执行者配合</text>
+
+  <text x="72" y="642" class="small">HTTP /conductor/* + Web UI</text>
+  <text x="385" y="642" class="small">subagent 服务、会话持久化、文件系统</text>
+
+  <!-- task state machine -->
+  <rect x="1080" y="350" width="670" height="300" rx="14" fill="#FFFBEB" stroke="#B45309"/>
+  <text x="1102" y="382" class="boxtitle">一个逻辑任务的状态机（以 T1 为例）</text>
+  <text x="1102" y="410" class="mono">queued → starting → running → completed</text>
+  <text x="1102" y="438" class="mono">                     ├→ failed / cancelled</text>
+  <text x="1102" y="466" class="mono">                     └→ 38% checkpoint</text>
+  <text x="1102" y="494" class="mono">                           ↓</text>
+  <text x="1102" y="522" class="mono">                    successor g+1 → running</text>
+  <text x="1102" y="556" class="mono">completed → task_followup → running</text>
+  <text x="1102" y="584" class="mono">terminal → 14 天 archive → 30 天删 transcript</text>
+  <text x="1102" y="618" class="small">同一任务 ID；旧 generation 不单独显示卡片</text>
+
+  <!-- isolation boundary -->
+  <rect x="50" y="690" width="980" height="430" rx="14" fill="#FEF2F2" stroke="#DC2626" stroke-width="2" stroke-dasharray="10 6"/>
+  <text x="72" y="722" class="boxtitle">严格任务隔离边界</text>
+  <text x="72" y="746" class="label">不同任务之间不联通：没有消息、没有共享上下文、没有互相委派。</text>
+
+  <!-- child T1 g0 -->
+  <rect x="78" y="775" width="285" height="285" rx="12" fill="#F0FDF4" stroke="#15803D"/>
+  <text x="96" y="805" class="sectiontitle">T1 · generation 0</text>
+  <text x="96" y="832" class="label">executor: role-5 / command-flash</text>
+  <text x="96" y="856" class="mono">child: 30bb27f2…</text>
+  <text x="96" y="884" class="label">独立 child session</text>
+  <text x="96" y="908" class="label">独立上下文与工具作用域</text>
+  <text x="96" y="932" class="label">只执行 T1，不知道 T2 存在</text>
+  <text x="96" y="960" class="label">完成后回传报告给发布者</text>
+  <text x="96" y="988" class="label">task_followup 可复用本 child</text>
+  <text x="96" y="1022" class="small">状态：completed / failed / running</text>
+
+  <!-- child T2 -->
+  <rect x="390" y="775" width="285" height="285" rx="12" fill="#F0FDF4" stroke="#15803D"/>
+  <text x="408" y="805" class="sectiontitle">T2 · generation 0</text>
+  <text x="408" y="832" class="label">executor: role-3</text>
+  <text x="408" y="856" class="mono">child: 22f1647e…</text>
+  <text x="408" y="884" class="label">独立 child session</text>
+  <text x="408" y="908" class="label">独立上下文与工具作用域</text>
+  <text x="408" y="932" class="label">只执行 T2，不知道 T1 存在</text>
+  <text x="408" y="960" class="label">完成后回传报告给发布者</text>
+  <text x="408" y="988" class="label">不能向 T1 发消息</text>
+  <text x="408" y="1022" class="small">与 T1 是并行隔离关系</text>
+
+  <!-- child T1 g1 -->
+  <rect x="702" y="775" width="300" height="285" rx="12" fill="#F0FDF4" stroke="#B45309" stroke-width="2"/>
+  <text x="720" y="805" class="sectiontitle">T1 · generation 1</text>
+  <text x="720" y="832" class="label">successor（交接后）</text>
+  <text x="720" y="856" class="label">同一个逻辑任务，新的 child</text>
+  <text x="720" y="884" class="label">接收原任务 + handoff 文件</text>
+  <text x="720" y="908" class="label">旧 generation 隐藏</text>
+  <text x="720" y="932" class="label">最多 3 代</text>
+  <text x="720" y="960" class="label">task_followup 指向新 child</text>
+  <text x="720" y="988" class="label">上下文从头开始</text>
+  <text x="720" y="1022" class="small">旧报告存在 generations[] / 归档</text>
+
+  <!-- cross-task forbidden -->
+  <line x1="363" y1="900" x2="388" y2="900" stroke="#DC2626" stroke-width="3" stroke-dasharray="6 4"/>
+  <line x1="365" y1="888" x2="385" y2="912" stroke="#DC2626" stroke-width="2"/>
+  <line x1="365" y1="912" x2="385" y2="888" stroke="#DC2626" stroke-width="2"/>
+  <text x="330" y="870" class="small" fill="#B91C1C">禁止联通</text>
+
+  <!-- T1 to g1 handoff arrow -->
+  <line x1="363" y1="945" x2="700" y2="945" stroke="#B45309" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrowAmber)"/>
+  <text x="470" y="935" class="small">checkpoint / handoff → successor</text>
+
+  <!-- host to child arrow -->
+  <line x1="540" y1="650" x2="540" y2="688" stroke="#0E7490" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="552" y="674" class="small">startActivation（角色路由）</text>
+
+  <!-- child to parent notice -->
+  <path d="M 250 773 C 250 680, 420 680, 420 640" fill="none" stroke="#1D4ED8" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrowBlue)"/>
+  <text x="190" y="700" class="small" fill="#1D4ED8">执行结果 → Host</text>
+
+  <!-- host to lead completion notice -->
+  <line x1="600" y1="348" x2="600" y2="292" stroke="#1D4ED8" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrowBlue)"/>
+  <text x="612" y="322" class="small" fill="#1D4ED8">completion notice → 发布者</text>
+
+  <!-- right lifecycle/archive -->
+  <rect x="1080" y="690" width="670" height="430" rx="14" fill="#F8FAFC" stroke="#B45309"/>
+  <text x="1102" y="722" class="boxtitle">生命周期与归档（Host 侧）</text>
+  <text x="1102" y="752" class="sectiontitle">Checkpoint / 交接</text>
+  <text x="1102" y="778" class="label">• 运行中每 2s 检查上下文</text>
+  <text x="1102" y="802" class="label">• 38% 或已压缩 → 发 checkpoint 指令</text>
+  <text x="1102" y="826" class="label">• 执行者写 handoff 文件并停止</text>
+  <text x="1102" y="850" class="label">• 40% 前启动 successor，带 handoff 继续</text>
+  <text x="1102" y="874" class="label">• 旧 generation 隐藏，最多 3 代</text>
+
+  <text x="1102" y="916" class="sectiontitle">归档</text>
+  <text x="1102" y="942" class="label">• 终态 14 天 → 写 archive JSON，看板隐藏</text>
+  <text x="1102" y="966" class="label">• 再过 30 天 → 删除 child transcript 目录</text>
+  <text x="1102" y="990" class="label">• 任务报告保留在归档 JSON</text>
+  <text x="1102" y="1022" class="small">删除是文件级 best-effort，DSH 无正式 session delete API</text>
+
+  <!-- bottom gaps -->
+  <rect x="50" y="1150" width="1700" height="130" rx="12" fill="#FFFFFF" stroke="#94A3B8" stroke-dasharray="8 6"/>
+  <text x="72" y="1180" class="boxtitle">当前缺失的 Agent 层能力（所以还不是 peer collaboration）</text>
+  <rect x="75" y="1198" width="300" height="55" rx="8" fill="#F8FAFC" stroke="#94A3B8" stroke-dasharray="5 4"/>
+  <text x="90" y="1222" class="label">Reviewer / 同行审查闭环</text>
+  <text x="90" y="1240" class="small">执行后由独立 agent 按验收标准挑错</text>
+
+  <rect x="395" y="1198" width="300" height="55" rx="8" fill="#F8FAFC" stroke="#94A3B8" stroke-dasharray="5 4"/>
+  <text x="410" y="1222" class="label">Shared blackboard / 共享产物</text>
+  <text x="410" y="1240" class="small">agent 读写同一份状态，不靠发布者转述</text>
+
+  <rect x="715" y="1198" width="300" height="55" rx="8" fill="#F8FAFC" stroke="#94A3B8" stroke-dasharray="5 4"/>
+  <text x="730" y="1222" class="label">Task DAG / 依赖图</text>
+  <text x="730" y="1240" class="small">依赖、阻塞、并行，而不是平铺 dispatch</text>
+
+  <rect x="1035" y="1198" width="300" height="55" rx="8" fill="#F8FAFC" stroke="#94A3B8" stroke-dasharray="5 4"/>
+  <text x="1050" y="1222" class="label">Agent-to-agent messaging</text>
+  <text x="1050" y="1240" class="small">受控邮箱/任务评论；目前没有</text>
+
+  <rect x="1355" y="1198" width="370" height="55" rx="8" fill="#F8FAFC" stroke="#94A3B8" stroke-dasharray="5 4"/>
+  <text x="1370" y="1222" class="label">MCP tool servers / 长期记忆 / 评估</text>
+  <text x="1370" y="1240" class="small">MCP 是工具协议，不自动产生协作</text>
+
+  <text x="50" y="1308" class="small">结论：当前 Conductor = 角色路由 + 严格隔离的 Supervisor/Worker + 任务板 + 生命周期；发布者是唯一协调者，子代理之间没有协作。</text>
+</svg>

@@ -141,6 +141,18 @@ Conductor 的模型工具和提示只挂在 `conductor` 预设下：
 相关配置：`checkpointPercent`、`handoffMaxGenerations`、`handoffPollMs`、
 `archiveAfterDays`、`deleteAfterArchiveDays`。
 
+### 失败诊断
+
+任务失败时会读取子会话最后的 `turn/end` / `assistant/attempt` 错误，并在任务卡片显示：
+
+- 原始 provider 错误，例如 `401 Invalid Authorization`
+- `errorCode`：`AUTH` / `QUOTA` / `RATE_LIMIT` / `SERVER` / `TIMEOUT` / `NETWORK` / `UNKNOWN`
+- 是否可重试，以及建议动作
+- `failureRetries` 和 `failureToolCalls`
+
+不会自动重试：401/额度不足直接提示换 key/充值；5xx/429/超时标记为可重试，但如果已经执行过工具，
+会提示先检查工作区，避免重复修改。
+
 ## 可视化任务板
 
 另装了一个独立的 Web UI bundle `@dippingorange/dsh-conductor-ui`，提供两个入口：

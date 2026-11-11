@@ -63,6 +63,8 @@ the **user** — not the model — decide which model each role uses.
   unchanged.
 - Task cards cap their height and scroll internally; running duration is computed from the local
   device clock and refreshes every second.
+- The right-sidebar board stacks its columns vertically and contains all widths; the full-page
+  board keeps three columns. Task rows use flat separators rather than nested cards.
 - At 38% context the executor is asked for a structured checkpoint; before 40% the task starts a
   successor generation with the handoff. Old generations stay under the same card and are hidden.
 - Terminal tasks are archived after 14 days and their child transcript is deleted 30 days later;

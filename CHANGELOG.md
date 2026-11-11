@@ -3,6 +3,17 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] - 2026-11-11
+
+### Changed
+
+- The right-sidebar board now stacks its columns vertically; the full-page board keeps the
+  three-column grid. All board, column, card, and main regions get `min-width:0` and width
+  containment so a published task can no longer push the panel past the viewport.
+- Flattened the visual hierarchy: task rows use hairline separators instead of nested cards,
+  status pills are muted text, the running dot no longer pulses, role cards are flat, and the
+  launcher uses the board icon instead of a text glyph.
+
 ## [2.2.0] - 2026-11-10
 
 ### Added

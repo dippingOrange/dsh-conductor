@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
+## [2.3.1] - 2026-11-11
+
+### Changed
+
+- Running task cards now show a warm gradient ring in the bottom-right corner; completed cards
+  replace it with a green check-in-circle. Running rows get a faint warm tint, and
+  `prefers-reduced-motion` disables the spin.
+
 ## [2.3.0] - 2026-11-11
 
 ### Changed

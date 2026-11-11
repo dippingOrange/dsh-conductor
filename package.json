@@ -1,6 +1,6 @@
 {
   "name": "dsh-conductor-monorepo",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "private": true,
   "description": "Multi-model task dispatch and Web task board for DeepSeek Harness.",
   "license": "MIT",

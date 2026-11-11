@@ -1,6 +1,6 @@
 {
   "name": "@dippingorange/dsh-conductor",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Route implementation work from the main model to executor models and collect their reports.",
   "license": "MIT",
   "repository": {

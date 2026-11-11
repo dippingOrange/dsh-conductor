@@ -321,6 +321,32 @@ window.__ModuleLoader__.load({
 .dsh-cb-btn { padding:3px 6px; }
 .dsh-cb-page-title { font-size:16px; }
 .dsh-cb-page-sub { max-width:560px; line-height:1.5; }
+
+/* --- worker state: gradient ring while running; green check when done. --- */
+.dsh-cb-task { position:relative; }
+.dsh-cb-task.has-orb { padding-bottom:28px; }
+.dsh-cb-task-running { background:color-mix(in srgb, #f59e0b 3%, transparent); }
+.dsh-cb-orb { position:absolute; right:9px; bottom:8px; width:20px; height:20px; z-index:2; pointer-events:none; }
+.dsh-cb-orb.running {
+  border-radius:50%;
+  background:conic-gradient(from 0deg, #f59e0b, #fb7185, #a78bfa, #f59e0b);
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  animation:dsh-cb-spin .9s linear infinite;
+  filter:drop-shadow(0 0 4px rgba(245,158,11,.35));
+}
+.dsh-cb-orb.completed {
+  border-radius:50%;
+  background:#16a34a;
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:0 0 0 3px color-mix(in srgb, #16a34a 16%, transparent);
+}
+.dsh-cb-orb.completed svg { width:12px; height:12px; display:block; }
+@keyframes dsh-cb-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .dsh-cb-orb.running { animation:none; } }
 `
 
     const ACTIVE = new Set(['queued', 'starting', 'running'])
@@ -351,6 +377,35 @@ window.__ModuleLoader__.load({
         if (typeof start === 'number') return Math.max(0, now - start)
       }
       return task.elapsedMs
+    }
+
+    function taskClass(task) {
+      const status = statusClass(task.status)
+      return `dsh-cb-task${status === 'running' ? ' dsh-cb-task-running' : ''}${
+        status === 'running' || status === 'completed' ? ' has-orb' : ''
+      }`
+    }
+
+    function renderStatusOrb(task) {
+      const status = statusClass(task.status)
+      if (status !== 'running' && status !== 'completed') return null
+      return h(
+        'span',
+        { className: `dsh-cb-orb ${status}`, 'aria-hidden': true },
+        status === 'completed'
+          ? h(
+              'svg',
+              { viewBox: '0 0 24 24', fill: 'none' },
+              h('path', {
+                d: 'M5 12.5l4.2 4.2L19 7',
+                stroke: 'currentColor',
+                strokeWidth: 3,
+                strokeLinecap: 'round',
+                strokeLinejoin: 'round',
+              }),
+            )
+          : null,
+      )
     }
 
     function useNow() {
@@ -760,7 +815,8 @@ window.__ModuleLoader__.load({
             : null
         return h(
           'div',
-          { key: task.id, className: 'dsh-cb-task' },
+          { key: task.id, className: taskClass(task) },
+          renderStatusOrb(task),
           h('span', { className: `dsh-cb-dot ${statusClass(task.status)}` }),
           h(
             'div',
@@ -1648,7 +1704,8 @@ window.__ModuleLoader__.load({
             : null
         return h(
           'div',
-          { key, className: 'dsh-cb-task' },
+          { key, className: taskClass(task) },
+          renderStatusOrb(task),
           h(
             'div',
             { className: 'dsh-cb-main' },
